@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: Modura HTTP API
+  version: 0.1.0
+  description: Authoritative HTTP contract for the Modura modular monolith.
+servers:
+  - url: /api
+paths:
+  /livez:
+    get:
+      operationId: getLiveness
+      summary: Report whether the process is alive
+      tags: [system]
+      responses:
+        "200":
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /readyz:
+    get:
+      operationId: getReadiness
+      summary: Report whether the process can serve traffic
+      tags: [system]
+      responses:
+        "200":
+          description: Process is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: Process is not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        traceId:
+          type: string

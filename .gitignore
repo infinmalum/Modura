@@ -24,9 +24,26 @@ profile.cov
 go.work
 go.work.sum
 
-# env file
+# Local environment and secrets
 .env
+.env.*
+!.env.example
+*.local
+
+# Project build output and local caches
+backend/modura
+backend/bin/
+backend/.cache/
+admin/node_modules/
+admin/dist/
+admin/.vite/
+admin/coverage/
+admin/.cache/
+admin/*.tsbuildinfo
+*.log
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
