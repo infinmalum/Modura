@@ -1,7 +1,12 @@
-.PHONY: verify generate generate-go generate-admin backend-format backend-lint backend-test backend-build admin-verify
+.PHONY: verify generate generated-clean generate-go generate-admin backend-format backend-lint backend-test backend-build admin-verify
 
-verify: generate backend-format backend-lint backend-test backend-build admin-verify
-	@git diff --exit-code -- backend/internal/api/generated backend/internal/platform/database/dbgen admin/src/api/generated
+verify: generated-clean backend-format backend-lint backend-test backend-build admin-verify
+
+generated-clean:
+	@before="$$(find backend/internal/api/generated backend/internal/platform/database/dbgen admin/src/api/generated -type f -print0 | sort -z | xargs -0 sha256sum)"; \
+	$(MAKE) generate; \
+	after="$$(find backend/internal/api/generated backend/internal/platform/database/dbgen admin/src/api/generated -type f -print0 | sort -z | xargs -0 sha256sum)"; \
+	test "$$before" = "$$after"
 
 generate: generate-go generate-admin
 

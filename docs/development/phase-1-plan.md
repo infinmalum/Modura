@@ -6,7 +6,31 @@ Planning basis: Project Constitution, executable agent contract, and SpringBlade
 ## Implementation status
 
 - Stage 0: complete on 2026-08-28. The backend/admin split, initial OpenAPI contract, generated Gin and React Query bindings, sqlc/migration structure, configuration and graceful HTTP server, workspace-local build caches, locked Admin dependencies, and `make verify` are operational.
-- Stages 1–5: pending.
+- Stage 1: core complete on 2026-08-29, with email delivery explicitly pending.
+  Tenant/login boundary ADR, tenant-local identity schema,
+  Argon2id credentials, UUIDv7 identifiers, signed access-token validation,
+  opaque refresh secrets, atomic PostgreSQL rotation/replay-family revocation,
+  login/refresh/logout/logout-all/password-change HTTP delivery, explicit
+  process configuration and PostgreSQL wiring, dependency-aware readiness,
+  CSRF-protected cookies, and authentication unit/contract tests are
+  implemented. Single-use invitation/password-reset issuance and consumption,
+  expiry enforcement, credential establishment/replacement, and all-session
+  invalidation are implemented; trusted delivery is intentionally left to the
+  provisioning/notification workflow rather than exposing secrets over HTTP.
+  Tenant-scoped account disable, security-version invalidation, session
+  revocation, and locked-account-only unlock operations are implemented as
+  application APIs. Their management HTTP exposure waits for Stage 2/3
+  administrator provisioning and authorization. Real-PostgreSQL
+  tenant-isolation, migration, invitation activation, account disable,
+  refresh-rotation, and replay-family-revocation tests passed against the
+  dedicated `modura_test` environment on 2026-08-29.
+- Email delivery is unavailable in the current environment. Invitation and
+  password-reset secrets can be issued and consumed securely, but no user-facing
+  request flow is complete until a notification/mail client is selected and
+  configured. Tokens MUST NOT be returned from public request endpoints as a
+  substitute. This delivery gap is tracked for the Stage 2 provisioning and
+  Stage 4 notification/admin workflow and is not represented as working UI.
+- Stages 2–5: pending.
 
 ## Goal
 

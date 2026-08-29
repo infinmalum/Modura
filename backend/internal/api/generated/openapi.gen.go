@@ -4,8 +4,27 @@
 package generated
 
 import (
+	"fmt"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
+	"github.com/oapi-codegen/runtime"
 )
+
+// Defines values for AccessTokenResponseTokenType.
+const (
+	Bearer AccessTokenResponseTokenType = "Bearer"
+)
+
+// Valid indicates whether the value is a known member of the AccessTokenResponseTokenType enum.
+func (e AccessTokenResponseTokenType) Valid() bool {
+	switch e {
+	case Bearer:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for HealthStatusStatus.
 const (
@@ -22,6 +41,23 @@ func (e HealthStatusStatus) Valid() bool {
 	}
 }
 
+// AccessTokenResponse defines model for AccessTokenResponse.
+type AccessTokenResponse struct {
+	AccessToken string                       `json:"accessToken"`
+	CsrfToken   string                       `json:"csrfToken"`
+	ExpiresIn   int64                        `json:"expiresIn"`
+	TokenType   AccessTokenResponseTokenType `json:"tokenType"`
+}
+
+// AccessTokenResponseTokenType defines model for AccessTokenResponse.TokenType.
+type AccessTokenResponseTokenType string
+
+// ChangePasswordRequest defines model for ChangePasswordRequest.
+type ChangePasswordRequest struct {
+	CurrentPassword *string `json:"currentPassword,omitempty"`
+	NewPassword     *string `json:"newPassword,omitempty"`
+}
+
 // HealthStatus defines model for HealthStatus.
 type HealthStatus struct {
 	Status HealthStatusStatus `json:"status"`
@@ -29,6 +65,19 @@ type HealthStatus struct {
 
 // HealthStatusStatus defines model for HealthStatus.Status.
 type HealthStatusStatus string
+
+// LoginRequest defines model for LoginRequest.
+type LoginRequest struct {
+	Login    string  `json:"login"`
+	Password *string `json:"password,omitempty"`
+	Tenant   string  `json:"tenant"`
+}
+
+// OneTimeCredentialRequest defines model for OneTimeCredentialRequest.
+type OneTimeCredentialRequest struct {
+	NewPassword *string `json:"newPassword,omitempty"`
+	Token       *string `json:"token,omitempty"`
+}
 
 // Problem defines model for Problem.
 type Problem struct {
@@ -39,8 +88,70 @@ type Problem struct {
 	Type    string  `json:"type"`
 }
 
+// CsrfToken defines model for CsrfToken.
+type CsrfToken = string
+
+// AuthenticationFailed defines model for AuthenticationFailed.
+type AuthenticationFailed = Problem
+
+// CsrfFailed defines model for CsrfFailed.
+type CsrfFailed = Problem
+
+// LogoutParams defines parameters for Logout.
+type LogoutParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// LogoutAllParams defines parameters for LogoutAll.
+type LogoutAllParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// ChangePasswordParams defines parameters for ChangePassword.
+type ChangePasswordParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// RefreshParams defines parameters for Refresh.
+type RefreshParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// AcceptInvitationJSONRequestBody defines body for AcceptInvitation for application/json ContentType.
+type AcceptInvitationJSONRequestBody = OneTimeCredentialRequest
+
+// LoginJSONRequestBody defines body for Login for application/json ContentType.
+type LoginJSONRequestBody = LoginRequest
+
+// ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
+type ChangePasswordJSONRequestBody = ChangePasswordRequest
+
+// ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
+type ResetPasswordJSONRequestBody = OneTimeCredentialRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// AcceptInvitation Consume an invitation and establish the first password
+	// (POST /auth/invitations/accept)
+	AcceptInvitation(c *gin.Context)
+	// Login Establish a tenant-local session
+	// (POST /auth/login)
+	Login(c *gin.Context)
+	// Logout Revoke the current session
+	// (POST /auth/logout)
+	Logout(c *gin.Context, params LogoutParams)
+	// LogoutAll Revoke every session for the authenticated tenant-local user
+	// (POST /auth/logout-all)
+	LogoutAll(c *gin.Context, params LogoutAllParams)
+	// ChangePassword Change the current user's password and rotate its session
+	// (PUT /auth/password)
+	ChangePassword(c *gin.Context, params ChangePasswordParams)
+	// ResetPassword Consume a password-reset token
+	// (POST /auth/password-resets)
+	ResetPassword(c *gin.Context)
+	// Refresh Rotate the refresh secret and issue an access token
+	// (POST /auth/refresh)
+	Refresh(c *gin.Context, params RefreshParams)
 	// GetLiveness Report whether the process is alive
 	// (GET /livez)
 	GetLiveness(c *gin.Context)
@@ -57,6 +168,217 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// AcceptInvitation operation middleware
+func (siw *ServerInterfaceWrapper) AcceptInvitation(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AcceptInvitation(c)
+}
+
+// Login operation middleware
+func (siw *ServerInterfaceWrapper) Login(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Login(c)
+}
+
+// Logout operation middleware
+func (siw *ServerInterfaceWrapper) Logout(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LogoutParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Logout(c, params)
+}
+
+// LogoutAll operation middleware
+func (siw *ServerInterfaceWrapper) LogoutAll(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LogoutAllParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LogoutAll(c, params)
+}
+
+// ChangePassword operation middleware
+func (siw *ServerInterfaceWrapper) ChangePassword(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ChangePasswordParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ChangePassword(c, params)
+}
+
+// ResetPassword operation middleware
+func (siw *ServerInterfaceWrapper) ResetPassword(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResetPassword(c)
+}
+
+// Refresh operation middleware
+func (siw *ServerInterfaceWrapper) Refresh(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RefreshParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Refresh(c, params)
+}
 
 // GetLiveness operation middleware
 func (siw *ServerInterfaceWrapper) GetLiveness(c *gin.Context) {
@@ -113,4 +435,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/livez", wrapper.GetLiveness)
 	router.GET(options.BaseURL+"/readyz", wrapper.GetReadiness)
+	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
+	router.POST(options.BaseURL+"/auth/refresh", wrapper.Refresh)
+	router.POST(options.BaseURL+"/auth/logout", wrapper.Logout)
+	router.POST(options.BaseURL+"/auth/logout-all", wrapper.LogoutAll)
+	router.PUT(options.BaseURL+"/auth/password", wrapper.ChangePassword)
+	router.POST(options.BaseURL+"/auth/password-resets", wrapper.ResetPassword)
+	router.POST(options.BaseURL+"/auth/invitations/accept", wrapper.AcceptInvitation)
 }

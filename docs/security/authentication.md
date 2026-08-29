@@ -21,6 +21,12 @@ Each password uses a cryptographically random salt. Plaintext exists only for ve
 
 Password policy should prioritize length and breached/common-password rejection over composition rules. Reset uses a single-use, short-lived server-side token or an invitation flow; shared default passwords are forbidden.
 
+Token issuance and consumption are implemented, but Modura currently has no
+configured mail client. Public recovery/invitation request workflows MUST remain
+unavailable until a delivery adapter is selected; they MUST NOT expose raw
+tokens in HTTP responses as a development substitute. Stage 2 provisioning and
+the later notification/admin workflow own that integration.
+
 ## Access tokens
 
 Access tokens are short-lived signed tokens containing only stable identifiers and minimum authorization/session context: issuer, audience, subject/user ID, tenant ID, session ID, issued/expiry times, and token ID. Sensitive profile data and complete mutable permission lists do not belong in the token.

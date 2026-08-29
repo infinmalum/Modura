@@ -36,8 +36,251 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Problem"
+  /auth/login:
+    post:
+      operationId: login
+      summary: Establish a tenant-local session
+      tags: [authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Session established; the refresh secret is set as an HttpOnly cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
+  /auth/refresh:
+    post:
+      operationId: refresh
+      summary: Rotate the refresh secret and issue an access token
+      tags: [authentication]
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: Session rotated
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
+        "403":
+          $ref: "#/components/responses/CsrfFailed"
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke the current session
+      tags: [authentication]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: Session revoked and refresh cookie cleared
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
+        "403":
+          $ref: "#/components/responses/CsrfFailed"
+  /auth/logout-all:
+    post:
+      operationId: logoutAll
+      summary: Revoke every session for the authenticated tenant-local user
+      tags: [authentication]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: All sessions revoked and refresh cookie cleared
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
+        "403":
+          $ref: "#/components/responses/CsrfFailed"
+  /auth/password:
+    put:
+      operationId: changePassword
+      summary: Change the current user's password and rotate its session
+      tags: [authentication]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed, other sessions revoked, and current session rotated
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
+        "403":
+          $ref: "#/components/responses/CsrfFailed"
+  /auth/password-resets:
+    post:
+      operationId: resetPassword
+      summary: Consume a password-reset token
+      tags: [authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OneTimeCredentialRequest"
+      responses:
+        "204":
+          description: Password replaced and all sessions revoked
+        "400":
+          description: Password policy or request validation failed
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
+  /auth/invitations/accept:
+    post:
+      operationId: acceptInvitation
+      summary: Consume an invitation and establish the first password
+      tags: [authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OneTimeCredentialRequest"
+      responses:
+        "204":
+          description: Invitation accepted and local account activated
+        "400":
+          description: Password policy or request validation failed
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 256
+  responses:
+    AuthenticationFailed:
+      description: Tenant or credentials are invalid, or the session is unavailable
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    CsrfFailed:
+      description: CSRF validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
   schemas:
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [tenant, login, password]
+      properties:
+        tenant:
+          type: string
+          minLength: 1
+          maxLength: 63
+        login:
+          type: string
+          minLength: 1
+          maxLength: 254
+        password:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          writeOnly: true
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          writeOnly: true
+        newPassword:
+          type: string
+          minLength: 12
+          maxLength: 1024
+          writeOnly: true
+    OneTimeCredentialRequest:
+      type: object
+      additionalProperties: false
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 512
+          writeOnly: true
+        newPassword:
+          type: string
+          minLength: 12
+          maxLength: 1024
+          writeOnly: true
+    AccessTokenResponse:
+      type: object
+      additionalProperties: false
+      required: [accessToken, tokenType, expiresIn, csrfToken]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          format: int64
+          minimum: 1
+        csrfToken:
+          type: string
     HealthStatus:
       type: object
       additionalProperties: false

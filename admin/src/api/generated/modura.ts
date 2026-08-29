@@ -5,18 +5,80 @@
  * Authoritative HTTP contract for the Modura modular monolith.
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
+
+export interface LoginRequest {
+  /**
+   * @minLength 1
+   * @maxLength 63
+   */
+  tenant: string;
+  /**
+   * @minLength 1
+   * @maxLength 254
+   */
+  login: string;
+  /**
+   * @minLength 1
+   * @maxLength 1024
+   */
+  password: string;
+}
+
+export interface ChangePasswordRequest {
+  /**
+   * @minLength 1
+   * @maxLength 1024
+   */
+  currentPassword: string;
+  /**
+   * @minLength 12
+   * @maxLength 1024
+   */
+  newPassword: string;
+}
+
+export interface OneTimeCredentialRequest {
+  /**
+   * @minLength 32
+   * @maxLength 512
+   */
+  token: string;
+  /**
+   * @minLength 12
+   * @maxLength 1024
+   */
+  newPassword: string;
+}
+
+export type AccessTokenResponseTokenType =
+  (typeof AccessTokenResponseTokenType)[keyof typeof AccessTokenResponseTokenType];
+
+export const AccessTokenResponseTokenType = {
+  Bearer: "Bearer",
+} as const;
+
+export interface AccessTokenResponse {
+  accessToken: string;
+  tokenType: AccessTokenResponseTokenType;
+  /** @minimum 1 */
+  expiresIn: number;
+  csrfToken: string;
+}
 
 export type HealthStatusStatus =
   (typeof HealthStatusStatus)[keyof typeof HealthStatusStatus];
@@ -40,6 +102,18 @@ export interface Problem {
   detail?: string;
   traceId?: string;
 }
+
+/**
+ * Tenant or credentials are invalid, or the session is unavailable
+ */
+export type AuthenticationFailedResponse = Problem;
+
+/**
+ * CSRF validation failed
+ */
+export type CsrfFailedResponse = Problem;
+
+export type CsrfTokenParameter = string;
 
 const withQueryKey = <T extends object, K>(
   query: T,
@@ -376,3 +450,896 @@ export function useGetReadiness<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export type loginResponse200 = {
+  data: AccessTokenResponse;
+  status: 200;
+};
+
+export type loginResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type loginResponseSuccess = loginResponse200 & {
+  headers: Headers;
+};
+export type loginResponseError = loginResponse401 & {
+  headers: Headers;
+};
+
+export type loginResponse = loginResponseSuccess | loginResponseError;
+
+export const getLoginUrl = () => {
+  return `/api/auth/login`;
+};
+
+/**
+ * @summary Establish a tenant-local session
+ */
+export const login = async (
+  loginRequest: LoginRequest,
+  options?: RequestInit,
+): Promise<loginResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getLoginUrl(), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(loginRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: loginResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as loginResponse;
+};
+
+export const getLoginMutationOptions = <
+  TError = AuthenticationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof login>>,
+    TError,
+    LoginMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof login>>,
+  TError,
+  LoginMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["login"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof login>>,
+    LoginMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return login(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LoginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof login>>
+>;
+export type LoginMutationBody = LoginRequest;
+export type LoginMutationError = AuthenticationFailedResponse;
+export type LoginMutationVariables = { data: LoginRequest };
+
+/**
+ * @summary Establish a tenant-local session
+ */
+export const useLogin = <
+  TError = AuthenticationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof login>>,
+      TError,
+      LoginMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof login>>,
+  TError,
+  LoginMutationVariables,
+  TContext
+> => {
+  return useMutation(getLoginMutationOptions(options), queryClient);
+};
+
+export type refreshResponse200 = {
+  data: AccessTokenResponse;
+  status: 200;
+};
+
+export type refreshResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type refreshResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type refreshResponseSuccess = refreshResponse200 & {
+  headers: Headers;
+};
+export type refreshResponseError = (refreshResponse401 | refreshResponse403) & {
+  headers: Headers;
+};
+
+export type refreshResponse = refreshResponseSuccess | refreshResponseError;
+
+export const getRefreshUrl = () => {
+  return `/api/auth/refresh`;
+};
+
+/**
+ * @summary Rotate the refresh secret and issue an access token
+ */
+export const refresh = async (
+  options?: RequestInit,
+): Promise<refreshResponse> => {
+  const res = await fetch(getRefreshUrl(), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: refreshResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as refreshResponse;
+};
+
+export const getRefreshMutationOptions = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refresh>>,
+    TError,
+    void,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refresh>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["refresh"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refresh>>,
+    void
+  > = () => {
+    return refresh(fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refresh>>
+>;
+
+export type RefreshMutationError =
+  AuthenticationFailedResponse | CsrfFailedResponse;
+
+/**
+ * @summary Rotate the refresh secret and issue an access token
+ */
+export const useRefresh = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof refresh>>,
+      TError,
+      void,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof refresh>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getRefreshMutationOptions(options), queryClient);
+};
+
+export type logoutResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type logoutResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type logoutResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type logoutResponseSuccess = logoutResponse204 & {
+  headers: Headers;
+};
+export type logoutResponseError = (logoutResponse401 | logoutResponse403) & {
+  headers: Headers;
+};
+
+export type logoutResponse = logoutResponseSuccess | logoutResponseError;
+
+export const getLogoutUrl = () => {
+  return `/api/auth/logout`;
+};
+
+/**
+ * @summary Revoke the current session
+ */
+export const logout = async (
+  options?: RequestInit,
+): Promise<logoutResponse> => {
+  const res = await fetch(getLogoutUrl(), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: logoutResponse["data"] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as logoutResponse;
+};
+
+export const getLogoutMutationOptions = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logout>>,
+    TError,
+    void,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof logout>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["logout"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof logout>>,
+    void
+  > = () => {
+    return logout(fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LogoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof logout>>
+>;
+
+export type LogoutMutationError =
+  AuthenticationFailedResponse | CsrfFailedResponse;
+
+/**
+ * @summary Revoke the current session
+ */
+export const useLogout = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof logout>>,
+      TError,
+      void,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof logout>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getLogoutMutationOptions(options), queryClient);
+};
+
+export type logoutAllResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type logoutAllResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type logoutAllResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type logoutAllResponseSuccess = logoutAllResponse204 & {
+  headers: Headers;
+};
+export type logoutAllResponseError = (
+  logoutAllResponse401 | logoutAllResponse403
+) & {
+  headers: Headers;
+};
+
+export type logoutAllResponse =
+  logoutAllResponseSuccess | logoutAllResponseError;
+
+export const getLogoutAllUrl = () => {
+  return `/api/auth/logout-all`;
+};
+
+/**
+ * @summary Revoke every session for the authenticated tenant-local user
+ */
+export const logoutAll = async (
+  options?: RequestInit,
+): Promise<logoutAllResponse> => {
+  const res = await fetch(getLogoutAllUrl(), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: logoutAllResponse["data"] = body ? JSON.parse(body) : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as logoutAllResponse;
+};
+
+export const getLogoutAllMutationOptions = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logoutAll>>,
+    TError,
+    void,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof logoutAll>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["logoutAll"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof logoutAll>>,
+    void
+  > = () => {
+    return logoutAll(fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LogoutAllMutationResult = NonNullable<
+  Awaited<ReturnType<typeof logoutAll>>
+>;
+
+export type LogoutAllMutationError =
+  AuthenticationFailedResponse | CsrfFailedResponse;
+
+/**
+ * @summary Revoke every session for the authenticated tenant-local user
+ */
+export const useLogoutAll = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof logoutAll>>,
+      TError,
+      void,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof logoutAll>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getLogoutAllMutationOptions(options), queryClient);
+};
+
+export type changePasswordResponse200 = {
+  data: AccessTokenResponse;
+  status: 200;
+};
+
+export type changePasswordResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type changePasswordResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type changePasswordResponseSuccess = changePasswordResponse200 & {
+  headers: Headers;
+};
+export type changePasswordResponseError = (
+  changePasswordResponse401 | changePasswordResponse403
+) & {
+  headers: Headers;
+};
+
+export type changePasswordResponse =
+  changePasswordResponseSuccess | changePasswordResponseError;
+
+export const getChangePasswordUrl = () => {
+  return `/api/auth/password`;
+};
+
+/**
+ * @summary Change the current user's password and rotate its session
+ */
+export const changePassword = async (
+  changePasswordRequest: ChangePasswordRequest,
+  options?: RequestInit,
+): Promise<changePasswordResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getChangePasswordUrl(), {
+    ...options,
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(changePasswordRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: changePasswordResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as changePasswordResponse;
+};
+
+export const getChangePasswordMutationOptions = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof changePassword>>,
+    TError,
+    ChangePasswordMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof changePassword>>,
+  TError,
+  ChangePasswordMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["changePassword"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof changePassword>>,
+    ChangePasswordMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return changePassword(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ChangePasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof changePassword>>
+>;
+export type ChangePasswordMutationBody = ChangePasswordRequest;
+export type ChangePasswordMutationError =
+  AuthenticationFailedResponse | CsrfFailedResponse;
+export type ChangePasswordMutationVariables = { data: ChangePasswordRequest };
+
+/**
+ * @summary Change the current user's password and rotate its session
+ */
+export const useChangePassword = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof changePassword>>,
+      TError,
+      ChangePasswordMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof changePassword>>,
+  TError,
+  ChangePasswordMutationVariables,
+  TContext
+> => {
+  return useMutation(getChangePasswordMutationOptions(options), queryClient);
+};
+
+export type resetPasswordResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type resetPasswordResponse400 = {
+  data: Problem;
+  status: 400;
+};
+
+export type resetPasswordResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type resetPasswordResponseSuccess = resetPasswordResponse204 & {
+  headers: Headers;
+};
+export type resetPasswordResponseError = (
+  resetPasswordResponse400 | resetPasswordResponse401
+) & {
+  headers: Headers;
+};
+
+export type resetPasswordResponse =
+  resetPasswordResponseSuccess | resetPasswordResponseError;
+
+export const getResetPasswordUrl = () => {
+  return `/api/auth/password-resets`;
+};
+
+/**
+ * @summary Consume a password-reset token
+ */
+export const resetPassword = async (
+  oneTimeCredentialRequest: OneTimeCredentialRequest,
+  options?: RequestInit,
+): Promise<resetPasswordResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getResetPasswordUrl(), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(oneTimeCredentialRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: resetPasswordResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as resetPasswordResponse;
+};
+
+export const getResetPasswordMutationOptions = <
+  TError = Problem | AuthenticationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetPassword>>,
+    TError,
+    ResetPasswordMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resetPassword>>,
+  TError,
+  ResetPasswordMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["resetPassword"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resetPassword>>,
+    ResetPasswordMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return resetPassword(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResetPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resetPassword>>
+>;
+export type ResetPasswordMutationBody = OneTimeCredentialRequest;
+export type ResetPasswordMutationError = Problem | AuthenticationFailedResponse;
+export type ResetPasswordMutationVariables = { data: OneTimeCredentialRequest };
+
+/**
+ * @summary Consume a password-reset token
+ */
+export const useResetPassword = <
+  TError = Problem | AuthenticationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof resetPassword>>,
+      TError,
+      ResetPasswordMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof resetPassword>>,
+  TError,
+  ResetPasswordMutationVariables,
+  TContext
+> => {
+  return useMutation(getResetPasswordMutationOptions(options), queryClient);
+};
+
+export type acceptInvitationResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type acceptInvitationResponse400 = {
+  data: Problem;
+  status: 400;
+};
+
+export type acceptInvitationResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type acceptInvitationResponseSuccess = acceptInvitationResponse204 & {
+  headers: Headers;
+};
+export type acceptInvitationResponseError = (
+  acceptInvitationResponse400 | acceptInvitationResponse401
+) & {
+  headers: Headers;
+};
+
+export type acceptInvitationResponse =
+  acceptInvitationResponseSuccess | acceptInvitationResponseError;
+
+export const getAcceptInvitationUrl = () => {
+  return `/api/auth/invitations/accept`;
+};
+
+/**
+ * @summary Consume an invitation and establish the first password
+ */
+export const acceptInvitation = async (
+  oneTimeCredentialRequest: OneTimeCredentialRequest,
+  options?: RequestInit,
+): Promise<acceptInvitationResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getAcceptInvitationUrl(), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(oneTimeCredentialRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: acceptInvitationResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as acceptInvitationResponse;
+};
+
+export const getAcceptInvitationMutationOptions = <
+  TError = Problem | AuthenticationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptInvitation>>,
+    TError,
+    AcceptInvitationMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptInvitation>>,
+  TError,
+  AcceptInvitationMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["acceptInvitation"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptInvitation>>,
+    AcceptInvitationMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return acceptInvitation(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptInvitationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptInvitation>>
+>;
+export type AcceptInvitationMutationBody = OneTimeCredentialRequest;
+export type AcceptInvitationMutationError =
+  Problem | AuthenticationFailedResponse;
+export type AcceptInvitationMutationVariables = {
+  data: OneTimeCredentialRequest;
+};
+
+/**
+ * @summary Consume an invitation and establish the first password
+ */
+export const useAcceptInvitation = <
+  TError = Problem | AuthenticationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof acceptInvitation>>,
+      TError,
+      AcceptInvitationMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof acceptInvitation>>,
+  TError,
+  AcceptInvitationMutationVariables,
+  TContext
+> => {
+  return useMutation(getAcceptInvitationMutationOptions(options), queryClient);
+};

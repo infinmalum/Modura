@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -18,7 +19,24 @@ const (
 )
 
 // Config contains the validated application configuration.
-type Config struct{ HTTP HTTP }
+type Config struct {
+	HTTP     HTTP
+	Database Database
+	Auth     Auth
+}
+
+// Database contains PostgreSQL connection configuration.
+type Database struct{ URL string }
+
+// Auth contains authentication and session security configuration.
+type Auth struct {
+	Issuer          string
+	Audience        string
+	SigningKeyID    string
+	SigningKey      []byte
+	AccessLifetime  time.Duration
+	RefreshLifetime time.Duration
+}
 
 // HTTP contains HTTP server configuration.
 type HTTP struct {
@@ -28,6 +46,7 @@ type HTTP struct {
 	IdleTimeout     time.Duration
 	ShutdownTimeout time.Duration
 	MaxHeaderBytes  int
+	CookieSecure    bool
 }
 
 // FromEnv loads configuration from environment variables and applies defaults.
@@ -49,7 +68,42 @@ func FromEnv() (Config, error) {
 	if httpConfig.MaxHeaderBytes, err = integer("MODURA_HTTP_MAX_HEADER_BYTES", defaultMaxHeaderBytes); err != nil {
 		return Config{}, err
 	}
-	return Config{HTTP: httpConfig}, nil
+	if httpConfig.CookieSecure, err = boolean("MODURA_AUTH_COOKIE_SECURE", true); err != nil {
+		return Config{}, err
+	}
+	databaseURL := strings.TrimSpace(os.Getenv("MODURA_DATABASE_URL"))
+	if databaseURL == "" {
+		return Config{}, fmt.Errorf("MODURA_DATABASE_URL is required")
+	}
+	signingKey := []byte(os.Getenv("MODURA_AUTH_SIGNING_KEY"))
+	if len(signingKey) < 32 {
+		return Config{}, fmt.Errorf("MODURA_AUTH_SIGNING_KEY must contain at least 32 bytes")
+	}
+	auth := Auth{
+		Issuer:       envOrDefault("MODURA_AUTH_ISSUER", "modura"),
+		Audience:     envOrDefault("MODURA_AUTH_AUDIENCE", "modura-admin"),
+		SigningKeyID: envOrDefault("MODURA_AUTH_SIGNING_KEY_ID", "primary"),
+		SigningKey:   signingKey,
+	}
+	if auth.AccessLifetime, err = duration("MODURA_AUTH_ACCESS_LIFETIME", 5*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if auth.RefreshLifetime, err = duration("MODURA_AUTH_REFRESH_LIFETIME", 24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	return Config{HTTP: httpConfig, Database: Database{URL: databaseURL}, Auth: auth}, nil
+}
+
+func boolean(name string, fallback bool) (bool, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("parse %s: %w", name, err)
+	}
+	return parsed, nil
 }
 
 func envOrDefault(name, fallback string) string {

@@ -3,3 +3,63 @@
 //   sqlc v1.31.1
 
 package dbgen
+
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type ModuraAuthOneTimeToken struct {
+	ID         pgtype.UUID        `json:"id"`
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Purpose    string             `json:"purpose"`
+	TokenHash  []byte             `json:"token_hash"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+}
+
+type ModuraAuthRefreshTokenUse struct {
+	TokenHash  []byte             `json:"token_hash"`
+	SessionID  pgtype.UUID        `json:"session_id"`
+	FamilyID   pgtype.UUID        `json:"family_id"`
+	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+}
+
+type ModuraAuthSession struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	FamilyID         pgtype.UUID        `json:"family_id"`
+	RefreshTokenHash []byte             `json:"refresh_token_hash"`
+	SecurityVersion  int64              `json:"security_version"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt        pgtype.Timestamptz `json:"revoked_at"`
+	RevocationReason pgtype.Text        `json:"revocation_reason"`
+}
+
+type ModuraTenant struct {
+	ID          pgtype.UUID        `json:"id"`
+	Slug        string             `json:"slug"`
+	DisplayName string             `json:"display_name"`
+	Status      string             `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ModuraUser struct {
+	ID                 pgtype.UUID        `json:"id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	Username           string             `json:"username"`
+	NormalizedUsername string             `json:"normalized_username"`
+	Email              pgtype.Text        `json:"email"`
+	NormalizedEmail    pgtype.Text        `json:"normalized_email"`
+	EmailVerifiedAt    pgtype.Timestamptz `json:"email_verified_at"`
+	PasswordHash       pgtype.Text        `json:"password_hash"`
+	Status             string             `json:"status"`
+	SecurityVersion    int64              `json:"security_version"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
