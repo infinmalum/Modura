@@ -22,6 +22,7 @@ type Dependencies struct {
 	Organization   handler.Organization
 	PlatformAdmin  handler.PlatformAdmin
 	PlatformTenant handler.PlatformTenant
+	Provisioning   handler.Provisioning
 	Ready          func(context.Context) error
 }
 
@@ -34,7 +35,7 @@ func New(cfg config.HTTP, logger *slog.Logger, dependencies ...Dependencies) *ht
 	if len(dependencies) > 0 {
 		deps = dependencies[0]
 	}
-	contractHandler := handler.New(handler.Dependencies{Identity: deps.Identity, Authorizer: deps.Authorizer, Organization: deps.Organization, PlatformAdmin: deps.PlatformAdmin, PlatformTenant: deps.PlatformTenant, Ready: deps.Ready}, cfg.CookieSecure, func() (string, error) { return identity.NewOpaqueToken(32) })
+	contractHandler := handler.New(handler.Dependencies{Identity: deps.Identity, Authorizer: deps.Authorizer, Organization: deps.Organization, PlatformAdmin: deps.PlatformAdmin, PlatformTenant: deps.PlatformTenant, Provisioning: deps.Provisioning, Ready: deps.Ready}, cfg.CookieSecure, func() (string, error) { return identity.NewOpaqueToken(32) })
 	generated.RegisterHandlersWithOptions(router, contractHandler, generated.GinServerOptions{BaseURL: "/api"})
 	return &http.Server{Addr: cfg.Address, Handler: router, ReadTimeout: cfg.ReadTimeout, WriteTimeout: cfg.WriteTimeout, IdleTimeout: cfg.IdleTimeout, MaxHeaderBytes: cfg.MaxHeaderBytes}
 }

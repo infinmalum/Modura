@@ -64,8 +64,8 @@ func (s *Store) ListPositions(ctx context.Context, tenantID identity.TenantID) (
 
 // CreateDepartment inserts a department and relies on composite foreign keys
 // for same-tenant parent ownership.
-func (s *Store) CreateDepartment(ctx context.Context, department organization.Department) error {
-	_, err := s.pool.Exec(ctx, `
+func (s *Store) CreateDepartment(ctx context.Context, tx pgx.Tx, department organization.Department) error {
+	_, err := tx.Exec(ctx, `
 INSERT INTO modura.departments
     (id, tenant_id, parent_id, name, normalized_name, sort_order, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`, department.ID, department.TenantID, department.ParentID, department.Name, department.NormalizedName, department.SortOrder, department.CreatedAt)
@@ -76,12 +76,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`, department.ID, department.TenantID, de
 }
 
 // MoveDepartment atomically rejects root moves, cross-tenant parents, and cycles.
-func (s *Store) MoveDepartment(ctx context.Context, tenantID identity.TenantID, departmentID, newParentID organization.DepartmentID, now time.Time) error {
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return fmt.Errorf("begin department move: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
+func (s *Store) MoveDepartment(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, departmentID, newParentID organization.DepartmentID, now time.Time) error {
 	var isRoot bool
 	if err := tx.QueryRow(ctx, `SELECT parent_id IS NULL FROM modura.departments WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, departmentID).Scan(&isRoot); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -118,15 +113,12 @@ SELECT EXISTS (SELECT 1 FROM descendants WHERE id = $3)`
 	if _, err := tx.Exec(ctx, `UPDATE modura.departments SET parent_id = $3, updated_at = $4 WHERE tenant_id = $1 AND id = $2`, tenantID, departmentID, newParentID, now); err != nil {
 		return fmt.Errorf("move department: %w", err)
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit department move: %w", err)
-	}
 	return nil
 }
 
 // DeleteDepartment deletes an unused non-root department.
-func (s *Store) DeleteDepartment(ctx context.Context, tenantID identity.TenantID, departmentID organization.DepartmentID) error {
-	command, err := s.pool.Exec(ctx, `DELETE FROM modura.departments WHERE tenant_id = $1 AND id = $2 AND parent_id IS NOT NULL`, tenantID, departmentID)
+func (s *Store) DeleteDepartment(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, departmentID organization.DepartmentID) error {
+	command, err := tx.Exec(ctx, `DELETE FROM modura.departments WHERE tenant_id = $1 AND id = $2 AND parent_id IS NOT NULL`, tenantID, departmentID)
 	if err != nil {
 		var postgresError *pgconn.PgError
 		if errors.As(err, &postgresError) && postgresError.Code == "23503" {
@@ -136,7 +128,7 @@ func (s *Store) DeleteDepartment(ctx context.Context, tenantID identity.TenantID
 	}
 	if command.RowsAffected() != 1 {
 		var isRoot bool
-		err := s.pool.QueryRow(ctx, `SELECT parent_id IS NULL FROM modura.departments WHERE tenant_id = $1 AND id = $2`, tenantID, departmentID).Scan(&isRoot)
+		err := tx.QueryRow(ctx, `SELECT parent_id IS NULL FROM modura.departments WHERE tenant_id = $1 AND id = $2`, tenantID, departmentID).Scan(&isRoot)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return organization.ErrNotFound
 		}
@@ -151,8 +143,8 @@ func (s *Store) DeleteDepartment(ctx context.Context, tenantID identity.TenantID
 }
 
 // CreatePosition inserts an active tenant position.
-func (s *Store) CreatePosition(ctx context.Context, position organization.Position) error {
-	_, err := s.pool.Exec(ctx, `
+func (s *Store) CreatePosition(ctx context.Context, tx pgx.Tx, position organization.Position) error {
+	_, err := tx.Exec(ctx, `
 INSERT INTO modura.positions (id, tenant_id, name, normalized_name, status, created_at, updated_at)
 VALUES ($1, $2, $3, $4, 'active', $5, $5)`, position.ID, position.TenantID, position.Name, position.NormalizedName, position.CreatedAt)
 	if err != nil {
@@ -162,8 +154,8 @@ VALUES ($1, $2, $3, $4, 'active', $5, $5)`, position.ID, position.TenantID, posi
 }
 
 // AssignUser upserts the single primary department and optional position.
-func (s *Store) AssignUser(ctx context.Context, tenantID identity.TenantID, userID identity.UserID, departmentID organization.DepartmentID, positionID *organization.PositionID, now time.Time) error {
-	_, err := s.pool.Exec(ctx, `
+func (s *Store) AssignUser(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, userID identity.UserID, departmentID organization.DepartmentID, positionID *organization.PositionID, now time.Time) error {
+	_, err := tx.Exec(ctx, `
 INSERT INTO modura.user_organization
     (tenant_id, user_id, primary_department_id, position_id, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $5)

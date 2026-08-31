@@ -30,7 +30,7 @@ Planning basis: Project Constitution, executable agent contract, and SpringBlade
   configured. Tokens MUST NOT be returned from public request endpoints as a
   substitute. This delivery gap is tracked for the Stage 2 provisioning and
   Stage 4 notification/admin workflow and is not represented as working UI.
-- Stage 2: in progress. Organization cardinality and provisioning idempotency
+- Stage 2: complete on 2026-08-31. Organization cardinality and provisioning idempotency
   decisions are accepted. Department, position, and single-primary-department
   schema/application foundations are implemented with real-PostgreSQL tests
   for root, sibling uniqueness, cycle, delete, assignment, and cross-tenant
@@ -55,8 +55,15 @@ Planning basis: Project Constitution, executable agent contract, and SpringBlade
   transaction with request correlation. Tenant provisioning now also requires
   a verified platform actor, explicit reason, and request correlation, and its
   successful audit evidence commits in the same idempotent transaction.
-  Platform provisioning HTTP delivery and audit coverage for the remaining
-  organization writes remain.
+  Platform provisioning HTTP delivery now requires the distinct platform
+  principal, platform CSRF pair, UUID idempotency key, explicit reason, and
+  request correlation; it maps first creation and safe retry separately and
+  never exposes the generated invitation secret. Department create/move/delete,
+  position create, and user organization assignment now carry the verified
+  tenant actor and request correlation into the application API. Each business
+  write and its audit event commit in the same PostgreSQL transaction through
+  the audit module's owned persistence API; integration evidence proves that an
+  audit failure rolls the business write back. Stage 2 exit criteria are met.
 - Stages 3–5: pending.
 
 ## Goal

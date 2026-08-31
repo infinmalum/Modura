@@ -194,6 +194,22 @@ type Problem struct {
 	Type    string  `json:"type"`
 }
 
+// ProvisionTenantRequest defines model for ProvisionTenantRequest.
+type ProvisionTenantRequest struct {
+	AdministratorEmail    *openapi_types.Email `json:"administratorEmail,omitempty"`
+	AdministratorUsername string               `json:"administratorUsername"`
+	DisplayName           string               `json:"displayName"`
+	Reason                string               `json:"reason"`
+	RootDepartmentName    string               `json:"rootDepartmentName"`
+	Slug                  string               `json:"slug"`
+}
+
+// ProvisionTenantResponse defines model for ProvisionTenantResponse.
+type ProvisionTenantResponse struct {
+	Created  bool               `json:"created"`
+	TenantId openapi_types.UUID `json:"tenantId"`
+}
+
 // TenantLifecycleRequest defines model for TenantLifecycleRequest.
 type TenantLifecycleRequest struct {
 	Reason string `json:"reason"`
@@ -204,6 +220,9 @@ type CsrfToken = string
 
 // DepartmentId defines model for DepartmentId.
 type DepartmentId = openapi_types.UUID
+
+// IdempotencyKey defines model for IdempotencyKey.
+type IdempotencyKey = openapi_types.UUID
 
 // TenantId defines model for TenantId.
 type TenantId = openapi_types.UUID
@@ -270,6 +289,12 @@ type PlatformRefreshParams struct {
 	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
 }
 
+// ProvisionPlatformTenantParams defines parameters for ProvisionPlatformTenant.
+type ProvisionPlatformTenantParams struct {
+	XCSRFToken     CsrfToken      `json:"X-CSRF-Token"`
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // ReactivatePlatformTenantParams defines parameters for ReactivatePlatformTenant.
 type ReactivatePlatformTenantParams struct {
 	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
@@ -306,6 +331,9 @@ type AssignUserOrganizationJSONRequestBody = AssignUserOrganizationRequest
 
 // PlatformLoginJSONRequestBody defines body for PlatformLogin for application/json ContentType.
 type PlatformLoginJSONRequestBody = PlatformLoginRequest
+
+// ProvisionPlatformTenantJSONRequestBody defines body for ProvisionPlatformTenant for application/json ContentType.
+type ProvisionPlatformTenantJSONRequestBody = ProvisionTenantRequest
 
 // ReactivatePlatformTenantJSONRequestBody defines body for ReactivatePlatformTenant for application/json ContentType.
 type ReactivatePlatformTenantJSONRequestBody = TenantLifecycleRequest
@@ -369,6 +397,9 @@ type ServerInterface interface {
 	// ListPlatformTenants List tenants as a global platform administrator
 	// (GET /platform/tenants)
 	ListPlatformTenants(c *gin.Context)
+	// ProvisionPlatformTenant Atomically provision a tenant as a global platform administrator
+	// (POST /platform/tenants)
+	ProvisionPlatformTenant(c *gin.Context, params ProvisionPlatformTenantParams)
 	// ReactivatePlatformTenant Reactivate a suspended tenant with auditable reason
 	// (POST /platform/tenants/{tenantId}/reactivate)
 	ReactivatePlatformTenant(c *gin.Context, tenantId TenantId, params ReactivatePlatformTenantParams)
@@ -950,6 +981,71 @@ func (siw *ServerInterfaceWrapper) ListPlatformTenants(c *gin.Context) {
 	siw.Handler.ListPlatformTenants(c)
 }
 
+// ProvisionPlatformTenant operation middleware
+func (siw *ServerInterfaceWrapper) ProvisionPlatformTenant(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ProvisionPlatformTenantParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for Idempotency-Key, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter Idempotency-Key: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter Idempotency-Key is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ProvisionPlatformTenant(c, params)
+}
+
 // ReactivatePlatformTenant operation middleware
 func (siw *ServerInterfaceWrapper) ReactivatePlatformTenant(c *gin.Context) {
 
@@ -1100,6 +1196,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/platform/auth/login", wrapper.PlatformLogin)
 	router.POST(options.BaseURL+"/platform/auth/refresh", wrapper.PlatformRefresh)
 	router.GET(options.BaseURL+"/platform/tenants", wrapper.ListPlatformTenants)
+	router.POST(options.BaseURL+"/platform/tenants", wrapper.ProvisionPlatformTenant)
 	router.POST(options.BaseURL+"/platform/tenants/:tenantId/suspend", wrapper.SuspendPlatformTenant)
 	router.POST(options.BaseURL+"/platform/tenants/:tenantId/reactivate", wrapper.ReactivatePlatformTenant)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.Refresh)

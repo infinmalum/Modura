@@ -16,6 +16,7 @@ import (
 	"github.com/modura-dev/modura/backend/internal/modules/organization"
 	"github.com/modura-dev/modura/backend/internal/modules/platformadmin"
 	"github.com/modura-dev/modura/backend/internal/modules/platformtenant"
+	"github.com/modura-dev/modura/backend/internal/modules/provisioning"
 )
 
 type identityStub struct {
@@ -36,6 +37,19 @@ type organizationStub struct{}
 type platformAdminStub struct{}
 
 type platformTenantStub struct{}
+
+type provisioningStub struct {
+	request provisioning.Request
+	err     error
+}
+
+func (s *provisioningStub) Provision(_ context.Context, request provisioning.Request) (provisioning.Result, error) {
+	s.request = request
+	if s.err != nil {
+		return provisioning.Result{}, s.err
+	}
+	return provisioning.Result{TenantID: "018bcfe5-6800-7000-8000-000000000901", AdministratorID: "018bcfe5-6800-7000-8000-000000000902", InvitationToken: "must-never-be-exposed", Created: true}, nil
+}
 
 func (platformAdminStub) Login(_ context.Context, username, password string) (platformadmin.Tokens, error) {
 	if username != "operator" || password != "secret password" {
@@ -74,19 +88,19 @@ func (organizationStub) ListDepartments(context.Context, identity.TenantID) ([]o
 func (organizationStub) ListPositions(context.Context, identity.TenantID) ([]organization.PositionView, error) {
 	return nil, nil
 }
-func (organizationStub) CreateDepartment(context.Context, identity.TenantID, *organization.DepartmentID, string, int) (organization.DepartmentID, error) {
+func (organizationStub) CreateDepartment(context.Context, organization.WriteContext, *organization.DepartmentID, string, int) (organization.DepartmentID, error) {
 	return "018bcfe5-6800-7000-8000-000000000701", nil
 }
-func (organizationStub) MoveDepartment(context.Context, identity.TenantID, organization.DepartmentID, organization.DepartmentID) error {
+func (organizationStub) MoveDepartment(context.Context, organization.WriteContext, organization.DepartmentID, organization.DepartmentID) error {
 	return nil
 }
-func (organizationStub) DeleteDepartment(context.Context, identity.TenantID, organization.DepartmentID) error {
+func (organizationStub) DeleteDepartment(context.Context, organization.WriteContext, organization.DepartmentID) error {
 	return nil
 }
-func (organizationStub) CreatePosition(context.Context, identity.TenantID, string) (organization.PositionID, error) {
+func (organizationStub) CreatePosition(context.Context, organization.WriteContext, string) (organization.PositionID, error) {
 	return "018bcfe5-6800-7000-8000-000000000702", nil
 }
-func (organizationStub) AssignUser(context.Context, identity.TenantID, identity.UserID, organization.DepartmentID, *organization.PositionID) error {
+func (organizationStub) AssignUser(context.Context, organization.WriteContext, identity.UserID, organization.DepartmentID, *organization.PositionID) error {
 	return nil
 }
 
@@ -199,6 +213,48 @@ func TestPlatformRefreshRejectsTenantCookies(t *testing.T) {
 	}
 }
 
+func TestProvisionTenantRequiresPlatformSessionAndDoesNotExposeInvitation(t *testing.T) {
+	service := &provisioningStub{}
+	router := testRouterWithProvisioning(&identityStub{}, service)
+	body := `{"slug":"acme","displayName":"Acme","rootDepartmentName":"Acme Root","administratorUsername":"admin","administratorEmail":"admin@example.com","reason":"customer onboarding"}`
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/platform/tenants", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer platform-access")
+	request.Header.Set("X-CSRF-Token", strings.Repeat("c", 32))
+	request.Header.Set("Idempotency-Key", "018bcfe5-6800-7000-8000-000000000903")
+	request.Header.Set("X-Request-ID", "request-provision-http")
+	request.AddCookie(&http.Cookie{Name: "modura_platform_refresh", Value: "platform-refresh"})
+	request.AddCookie(&http.Cookie{Name: "modura_platform_csrf", Value: strings.Repeat("c", 32)})
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), "must-never-be-exposed") || strings.Contains(response.Body.String(), "invitation") {
+		t.Fatalf("response disclosed invitation material: %s", response.Body.String())
+	}
+	if service.request.Actor.AdministratorID == "" || service.request.Reason != "customer onboarding" || service.request.CorrelationID != "request-provision-http" {
+		t.Fatalf("provisioning request = %+v", service.request)
+	}
+}
+
+func TestProvisionTenantMapsIdempotencyConflict(t *testing.T) {
+	service := &provisioningStub{err: provisioning.ErrIdempotencyConflict}
+	router := testRouterWithProvisioning(&identityStub{}, service)
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/platform/tenants", strings.NewReader(`{"slug":"acme","displayName":"Acme","rootDepartmentName":"Root","administratorUsername":"admin","reason":"onboarding"}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer platform-access")
+	request.Header.Set("X-CSRF-Token", strings.Repeat("c", 32))
+	request.Header.Set("Idempotency-Key", "018bcfe5-6800-7000-8000-000000000903")
+	request.AddCookie(&http.Cookie{Name: "modura_platform_refresh", Value: "platform-refresh"})
+	request.AddCookie(&http.Cookie{Name: "modura_platform_csrf", Value: strings.Repeat("c", 32)})
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d, body=%s", response.Code, http.StatusConflict, response.Body.String())
+	}
+}
+
 func TestOneTimeCredentialResponseDoesNotDiscloseTokenState(t *testing.T) {
 	router := testRouter(&identityStub{})
 	for _, token := range []string{strings.Repeat("x", 32), strings.Repeat("t", 32)} {
@@ -233,9 +289,13 @@ func TestDepartmentManagementRequiresServerAuthorization(t *testing.T) {
 }
 
 func testRouter(service Identity) http.Handler {
+	return testRouterWithProvisioning(service, &provisioningStub{})
+}
+
+func testRouterWithProvisioning(service Identity, provisioningService Provisioning) http.Handler {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	h := New(Dependencies{Identity: service, Authorizer: authorizerStub{}, Organization: organizationStub{}, PlatformAdmin: platformAdminStub{}, PlatformTenant: platformTenantStub{}}, true, func() (string, error) { return strings.Repeat("c", 32), nil })
+	h := New(Dependencies{Identity: service, Authorizer: authorizerStub{}, Organization: organizationStub{}, PlatformAdmin: platformAdminStub{}, PlatformTenant: platformTenantStub{}, Provisioning: provisioningService}, true, func() (string, error) { return strings.Repeat("c", 32), nil })
 	generated.RegisterHandlersWithOptions(router, h, generated.GinServerOptions{BaseURL: "/api"})
 	return router
 }

@@ -107,6 +107,42 @@ paths:
         "403":
           $ref: "#/components/responses/CsrfFailed"
   /platform/tenants:
+    post:
+      operationId: provisionPlatformTenant
+      summary: Atomically provision a tenant as a global platform administrator
+      tags: [platform-tenants]
+      security:
+        - platformBearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvisionTenantRequest"
+      responses:
+        "201":
+          description: Tenant, first administrator, organization, and role were created atomically
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisionTenantResponse"
+        "200":
+          description: The same completed provisioning request was returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisionTenantResponse"
+        "400":
+          description: Invalid provisioning request
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
+        "403":
+          $ref: "#/components/responses/CsrfFailed"
+        "409":
+          description: Idempotency key was reused with different input
     get:
       operationId: listPlatformTenants
       summary: List tenants as a global platform administrator
@@ -511,6 +547,13 @@ components:
         type: string
         minLength: 32
         maxLength: 256
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
     DepartmentId:
       name: departmentId
       in: path
@@ -605,6 +648,46 @@ components:
         updatedAt:
           type: string
           format: date-time
+    ProvisionTenantRequest:
+      type: object
+      additionalProperties: false
+      required: [slug, displayName, rootDepartmentName, administratorUsername, reason]
+      properties:
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 128
+        rootDepartmentName:
+          type: string
+          minLength: 1
+          maxLength: 128
+        administratorUsername:
+          type: string
+          minLength: 1
+          maxLength: 128
+        administratorEmail:
+          type: string
+          format: email
+          maxLength: 254
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+    ProvisionTenantResponse:
+      type: object
+      additionalProperties: false
+      required: [tenantId, created]
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        created:
+          type: boolean
     TenantLifecycleRequest:
       type: object
       additionalProperties: false

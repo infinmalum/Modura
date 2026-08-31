@@ -70,6 +70,42 @@ export interface PlatformTenant {
   updatedAt: string;
 }
 
+export interface ProvisionTenantRequest {
+  /**
+   * @minLength 1
+   * @maxLength 63
+   * @pattern ^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$
+   */
+  slug: string;
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  displayName: string;
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  rootDepartmentName: string;
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  administratorUsername: string;
+  /** @maxLength 254 */
+  administratorEmail?: string;
+  /**
+   * @minLength 1
+   * @maxLength 500
+   */
+  reason: string;
+}
+
+export interface ProvisionTenantResponse {
+  tenantId: string;
+  created: boolean;
+}
+
 export interface TenantLifecycleRequest {
   /**
    * @minLength 1
@@ -216,6 +252,8 @@ export type CsrfFailedResponse = Problem;
 export type AuthorizationFailedResponse = Problem;
 
 export type CsrfTokenParameter = string;
+
+export type IdempotencyKeyParameter = string;
 
 const withQueryKey = <T extends object, K>(
   query: T,
@@ -927,6 +965,171 @@ export const usePlatformRefresh = <
   TContext
 > => {
   return useMutation(getPlatformRefreshMutationOptions(options), queryClient);
+};
+
+export type provisionPlatformTenantResponse200 = {
+  data: ProvisionTenantResponse;
+  status: 200;
+};
+
+export type provisionPlatformTenantResponse201 = {
+  data: ProvisionTenantResponse;
+  status: 201;
+};
+
+export type provisionPlatformTenantResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type provisionPlatformTenantResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type provisionPlatformTenantResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type provisionPlatformTenantResponse409 = {
+  data: void;
+  status: 409;
+};
+
+export type provisionPlatformTenantResponseSuccess = (
+  provisionPlatformTenantResponse200 | provisionPlatformTenantResponse201
+) & {
+  headers: Headers;
+};
+export type provisionPlatformTenantResponseError = (
+  | provisionPlatformTenantResponse400
+  | provisionPlatformTenantResponse401
+  | provisionPlatformTenantResponse403
+  | provisionPlatformTenantResponse409
+) & {
+  headers: Headers;
+};
+
+export type provisionPlatformTenantResponse =
+  provisionPlatformTenantResponseSuccess | provisionPlatformTenantResponseError;
+
+export const getProvisionPlatformTenantUrl = () => {
+  return `/api/platform/tenants`;
+};
+
+/**
+ * @summary Atomically provision a tenant as a global platform administrator
+ */
+export const provisionPlatformTenant = async (
+  provisionTenantRequest: ProvisionTenantRequest,
+  options?: RequestInit,
+): Promise<provisionPlatformTenantResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getProvisionPlatformTenantUrl(), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(provisionTenantRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: provisionPlatformTenantResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as provisionPlatformTenantResponse;
+};
+
+export const getProvisionPlatformTenantMutationOptions = <
+  TError = void | AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof provisionPlatformTenant>>,
+    TError,
+    ProvisionPlatformTenantMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof provisionPlatformTenant>>,
+  TError,
+  ProvisionPlatformTenantMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["provisionPlatformTenant"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof provisionPlatformTenant>>,
+    ProvisionPlatformTenantMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return provisionPlatformTenant(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ProvisionPlatformTenantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof provisionPlatformTenant>>
+>;
+export type ProvisionPlatformTenantMutationBody = ProvisionTenantRequest;
+export type ProvisionPlatformTenantMutationError =
+  void | AuthenticationFailedResponse | CsrfFailedResponse;
+export type ProvisionPlatformTenantMutationVariables = {
+  data: ProvisionTenantRequest;
+};
+
+/**
+ * @summary Atomically provision a tenant as a global platform administrator
+ */
+export const useProvisionPlatformTenant = <
+  TError = void | AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof provisionPlatformTenant>>,
+      TError,
+      ProvisionPlatformTenantMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof provisionPlatformTenant>>,
+  TError,
+  ProvisionPlatformTenantMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getProvisionPlatformTenantMutationOptions(options),
+    queryClient,
+  );
 };
 
 export type listPlatformTenantsResponse200 = {

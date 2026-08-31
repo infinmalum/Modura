@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/modura-dev/modura/backend/internal/modules/audit"
 	"github.com/modura-dev/modura/backend/internal/modules/identity"
 )
 
@@ -14,12 +15,28 @@ import (
 type Store interface {
 	ListDepartments(context.Context, identity.TenantID) ([]DepartmentView, error)
 	ListPositions(context.Context, identity.TenantID) ([]PositionView, error)
-	CreateDepartment(context.Context, Department) error
-	MoveDepartment(context.Context, identity.TenantID, DepartmentID, DepartmentID, time.Time) error
-	DeleteDepartment(context.Context, identity.TenantID, DepartmentID) error
-	CreatePosition(context.Context, Position) error
-	AssignUser(context.Context, identity.TenantID, identity.UserID, DepartmentID, *PositionID, time.Time) error
+	CreateDepartment(context.Context, pgx.Tx, Department) error
+	MoveDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, DepartmentID, time.Time) error
+	DeleteDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID) error
+	CreatePosition(context.Context, pgx.Tx, Position) error
+	AssignUser(context.Context, pgx.Tx, identity.TenantID, identity.UserID, DepartmentID, *PositionID, time.Time) error
 	ProvisionInitialOrganization(context.Context, pgx.Tx, Department, identity.UserID) error
+}
+
+// Transactor supplies the application-owned transaction boundary.
+type Transactor interface {
+	WithinTransaction(context.Context, func(pgx.Tx) error) error
+}
+
+// Auditor owns durable audit persistence inside the organization transaction.
+type Auditor interface {
+	RecordTenantWrite(context.Context, pgx.Tx, audit.Event) error
+}
+
+// WriteContext carries verified evidence required for tenant management writes.
+type WriteContext struct {
+	Actor         identity.Actor
+	CorrelationID string
 }
 
 // ListPositions returns the actor tenant's position catalog.
@@ -48,23 +65,25 @@ func (s *Service) ListDepartments(ctx context.Context, tenantID identity.TenantI
 
 // Service implements tenant-scoped organization use cases.
 type Service struct {
-	store Store
-	now   func() time.Time
-	newID func(time.Time) (string, error)
+	store        Store
+	transactions Transactor
+	auditor      Auditor
+	now          func() time.Time
+	newID        func(time.Time) (string, error)
 }
 
 // NewService constructs an organization service.
-func NewService(store Store, now func() time.Time, newID func(time.Time) (string, error)) (*Service, error) {
-	if store == nil || now == nil || newID == nil {
+func NewService(store Store, transactions Transactor, auditor Auditor, now func() time.Time, newID func(time.Time) (string, error)) (*Service, error) {
+	if store == nil || transactions == nil || auditor == nil || now == nil || newID == nil {
 		return nil, fmt.Errorf("invalid organization service configuration")
 	}
-	return &Service{store: store, now: now, newID: newID}, nil
+	return &Service{store: store, transactions: transactions, auditor: auditor, now: now, newID: newID}, nil
 }
 
 // CreateDepartment creates a root or child department in an explicit tenant.
-func (s *Service) CreateDepartment(ctx context.Context, tenantID identity.TenantID, parentID *DepartmentID, name string, sortOrder int) (DepartmentID, error) {
+func (s *Service) CreateDepartment(ctx context.Context, write WriteContext, parentID *DepartmentID, name string, sortOrder int) (DepartmentID, error) {
 	normalized := NormalizeName(name)
-	if tenantID == "" || normalized == "" {
+	if !validWrite(write) || normalized == "" {
 		return "", fmt.Errorf("invalid department")
 	}
 	now := s.now().UTC()
@@ -72,33 +91,37 @@ func (s *Service) CreateDepartment(ctx context.Context, tenantID identity.Tenant
 	if err != nil {
 		return "", fmt.Errorf("generate department ID: %w", err)
 	}
-	department := Department{ID: DepartmentID(id), TenantID: tenantID, ParentID: parentID, Name: strings.TrimSpace(name), NormalizedName: normalized, SortOrder: sortOrder, CreatedAt: now}
-	if err := s.store.CreateDepartment(ctx, department); err != nil {
+	department := Department{ID: DepartmentID(id), TenantID: write.Actor.TenantID, ParentID: parentID, Name: strings.TrimSpace(name), NormalizedName: normalized, SortOrder: sortOrder, CreatedAt: now}
+	if err := s.write(ctx, write, now, "organization.department.created", "department", string(department.ID), func(tx pgx.Tx) error { return s.store.CreateDepartment(ctx, tx, department) }); err != nil {
 		return "", fmt.Errorf("create department: %w", err)
 	}
 	return department.ID, nil
 }
 
 // MoveDepartment moves a non-root department while preventing cycles.
-func (s *Service) MoveDepartment(ctx context.Context, tenantID identity.TenantID, departmentID, newParentID DepartmentID) error {
-	if tenantID == "" || departmentID == "" || newParentID == "" {
+func (s *Service) MoveDepartment(ctx context.Context, write WriteContext, departmentID, newParentID DepartmentID) error {
+	if !validWrite(write) || departmentID == "" || newParentID == "" {
 		return fmt.Errorf("invalid department move")
 	}
-	return s.store.MoveDepartment(ctx, tenantID, departmentID, newParentID, s.now().UTC())
+	now := s.now().UTC()
+	return s.write(ctx, write, now, "organization.department.moved", "department", string(departmentID), func(tx pgx.Tx) error {
+		return s.store.MoveDepartment(ctx, tx, write.Actor.TenantID, departmentID, newParentID, now)
+	})
 }
 
 // DeleteDepartment deletes an unused non-root department.
-func (s *Service) DeleteDepartment(ctx context.Context, tenantID identity.TenantID, departmentID DepartmentID) error {
-	if tenantID == "" || departmentID == "" {
+func (s *Service) DeleteDepartment(ctx context.Context, write WriteContext, departmentID DepartmentID) error {
+	if !validWrite(write) || departmentID == "" {
 		return fmt.Errorf("invalid department delete")
 	}
-	return s.store.DeleteDepartment(ctx, tenantID, departmentID)
+	now := s.now().UTC()
+	return s.write(ctx, write, now, "organization.department.deleted", "department", string(departmentID), func(tx pgx.Tx) error { return s.store.DeleteDepartment(ctx, tx, write.Actor.TenantID, departmentID) })
 }
 
 // CreatePosition creates an active tenant position.
-func (s *Service) CreatePosition(ctx context.Context, tenantID identity.TenantID, name string) (PositionID, error) {
+func (s *Service) CreatePosition(ctx context.Context, write WriteContext, name string) (PositionID, error) {
 	normalized := NormalizeName(name)
-	if tenantID == "" || normalized == "" {
+	if !validWrite(write) || normalized == "" {
 		return "", fmt.Errorf("invalid position")
 	}
 	now := s.now().UTC()
@@ -106,19 +129,35 @@ func (s *Service) CreatePosition(ctx context.Context, tenantID identity.TenantID
 	if err != nil {
 		return "", fmt.Errorf("generate position ID: %w", err)
 	}
-	position := Position{ID: PositionID(id), TenantID: tenantID, Name: strings.TrimSpace(name), NormalizedName: normalized, CreatedAt: now}
-	if err := s.store.CreatePosition(ctx, position); err != nil {
+	position := Position{ID: PositionID(id), TenantID: write.Actor.TenantID, Name: strings.TrimSpace(name), NormalizedName: normalized, CreatedAt: now}
+	if err := s.write(ctx, write, now, "organization.position.created", "position", string(position.ID), func(tx pgx.Tx) error { return s.store.CreatePosition(ctx, tx, position) }); err != nil {
 		return "", fmt.Errorf("create position: %w", err)
 	}
 	return position.ID, nil
 }
 
 // AssignUser sets the user's single primary department and optional position.
-func (s *Service) AssignUser(ctx context.Context, tenantID identity.TenantID, userID identity.UserID, departmentID DepartmentID, positionID *PositionID) error {
-	if tenantID == "" || userID == "" || departmentID == "" {
+func (s *Service) AssignUser(ctx context.Context, write WriteContext, userID identity.UserID, departmentID DepartmentID, positionID *PositionID) error {
+	if !validWrite(write) || userID == "" || departmentID == "" {
 		return fmt.Errorf("invalid user organization assignment")
 	}
-	return s.store.AssignUser(ctx, tenantID, userID, departmentID, positionID, s.now().UTC())
+	now := s.now().UTC()
+	return s.write(ctx, write, now, "organization.user-assigned", "user", string(userID), func(tx pgx.Tx) error {
+		return s.store.AssignUser(ctx, tx, write.Actor.TenantID, userID, departmentID, positionID, now)
+	})
+}
+
+func (s *Service) write(ctx context.Context, write WriteContext, now time.Time, action, resource, resourceID string, change func(pgx.Tx) error) error {
+	return s.transactions.WithinTransaction(ctx, func(tx pgx.Tx) error {
+		if err := change(tx); err != nil {
+			return err
+		}
+		return s.auditor.RecordTenantWrite(ctx, tx, audit.Event{ActorID: write.Actor.UserID, TenantID: write.Actor.TenantID, Action: action, Resource: resource, ResourceID: resourceID, Reason: "authorized tenant management request", CorrelationID: write.CorrelationID, OccurredAt: now})
+	})
+}
+
+func validWrite(write WriteContext) bool {
+	return write.Actor.TenantID != "" && write.Actor.UserID != "" && write.Actor.SessionID != "" && strings.TrimSpace(write.CorrelationID) != ""
 }
 
 // ProvisionInitialOrganization creates the sole root department and assigns

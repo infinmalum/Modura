@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/modura-dev/modura/backend/internal/modules/audit"
+	auditpostgres "github.com/modura-dev/modura/backend/internal/modules/audit/postgres"
 	"github.com/modura-dev/modura/backend/internal/modules/authorization"
 	authorizationpostgres "github.com/modura-dev/modura/backend/internal/modules/authorization/postgres"
 	"github.com/modura-dev/modura/backend/internal/modules/identity"
@@ -18,6 +20,7 @@ import (
 	"github.com/modura-dev/modura/backend/internal/modules/organization"
 	organizationpostgres "github.com/modura-dev/modura/backend/internal/modules/organization/postgres"
 	"github.com/modura-dev/modura/backend/internal/modules/platformadmin"
+	"github.com/modura-dev/modura/backend/internal/platform/database"
 )
 
 func TestProvisionIsAtomicAndIdempotent(t *testing.T) {
@@ -32,7 +35,11 @@ func TestProvisionIsAtomicAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	organizationService, err := organization.NewService(organizationpostgres.New(pool), func() time.Time { return now }, sequentialIDs())
+	auditService, err := audit.NewService(auditpostgres.New(), sequentialIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	organizationService, err := organization.NewService(organizationpostgres.New(pool), database.NewTransactor(pool), auditService, func() time.Time { return now }, sequentialIDs())
 	if err != nil {
 		t.Fatal(err)
 	}

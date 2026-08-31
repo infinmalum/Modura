@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/modura-dev/modura/backend/internal/modules/audit"
+	auditpostgres "github.com/modura-dev/modura/backend/internal/modules/audit/postgres"
 	"github.com/modura-dev/modura/backend/internal/modules/authorization"
 	authorizationpostgres "github.com/modura-dev/modura/backend/internal/modules/authorization/postgres"
 	"github.com/modura-dev/modura/backend/internal/modules/identity"
@@ -22,7 +24,9 @@ import (
 	platformadminpostgres "github.com/modura-dev/modura/backend/internal/modules/platformadmin/postgres"
 	"github.com/modura-dev/modura/backend/internal/modules/platformtenant"
 	platformtenantpostgres "github.com/modura-dev/modura/backend/internal/modules/platformtenant/postgres"
+	"github.com/modura-dev/modura/backend/internal/modules/provisioning"
 	"github.com/modura-dev/modura/backend/internal/platform/config"
+	"github.com/modura-dev/modura/backend/internal/platform/database"
 	"github.com/modura-dev/modura/backend/internal/platform/httpserver"
 	"github.com/modura-dev/modura/backend/internal/platform/identifier"
 )
@@ -70,7 +74,16 @@ func main() {
 		logger.Error("configure authorization service", "error", err)
 		os.Exit(1)
 	}
-	organizationService, err := organization.NewService(organizationpostgres.New(pool), time.Now, func(now time.Time) (string, error) {
+	auditService, err := audit.NewService(auditpostgres.New(), func(now time.Time) (string, error) {
+		id, idErr := identifier.NewUUIDv7(now, nil)
+		return string(id), idErr
+	})
+	if err != nil {
+		logger.Error("configure audit service", "error", err)
+		os.Exit(1)
+	}
+	organizationStore := organizationpostgres.New(pool)
+	organizationService, err := organization.NewService(organizationStore, database.NewTransactor(pool), auditService, time.Now, func(now time.Time) (string, error) {
 		id, idErr := identifier.NewUUIDv7(now, nil)
 		return string(id), idErr
 	})
@@ -100,7 +113,15 @@ func main() {
 		logger.Error("configure platform tenant service", "error", err)
 		os.Exit(1)
 	}
-	server := httpserver.New(cfg.HTTP, logger, httpserver.Dependencies{Identity: identityService, Authorizer: authorizationService, Organization: organizationService, PlatformAdmin: platformAdminService, PlatformTenant: platformTenantService, Ready: pool.Ping})
+	provisioningService, err := provisioning.NewService(pool, identityService, organizationService, authorizationService, time.Now, func(now time.Time) (string, error) {
+		id, idErr := identifier.NewUUIDv7(now, nil)
+		return string(id), idErr
+	}, func() (string, error) { return identity.NewOpaqueToken(32) }, cfg.Auth.InvitationLifetime)
+	if err != nil {
+		logger.Error("configure tenant provisioning service", "error", err)
+		os.Exit(1)
+	}
+	server := httpserver.New(cfg.HTTP, logger, httpserver.Dependencies{Identity: identityService, Authorizer: authorizationService, Organization: organizationService, PlatformAdmin: platformAdminService, PlatformTenant: platformTenantService, Provisioning: provisioningService, Ready: pool.Ping})
 
 	errCh := make(chan error, 1)
 	go func() {

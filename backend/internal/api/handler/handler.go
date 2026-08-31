@@ -10,6 +10,7 @@ import (
 	organizationhttp "github.com/modura-dev/modura/backend/internal/modules/organization/transport/http"
 	platformadminhttp "github.com/modura-dev/modura/backend/internal/modules/platformadmin/transport/http"
 	platformtenanthttp "github.com/modura-dev/modura/backend/internal/modules/platformtenant/transport/http"
+	provisioninghttp "github.com/modura-dev/modura/backend/internal/modules/provisioning/transport/http"
 )
 
 // Dependencies are the application capabilities required by HTTP delivery.
@@ -19,6 +20,7 @@ type Dependencies struct {
 	Organization   organizationhttp.Service
 	PlatformAdmin  platformadminhttp.Service
 	PlatformTenant platformtenanthttp.Service
+	Provisioning   provisioninghttp.Service
 	Ready          func(context.Context) error
 }
 
@@ -37,12 +39,16 @@ type PlatformAdmin = platformadminhttp.Service
 // PlatformTenant is the tenant lifecycle API consumed by HTTP delivery.
 type PlatformTenant = platformtenanthttp.Service
 
+// Provisioning is the tenant provisioning API consumed by HTTP delivery.
+type Provisioning = provisioninghttp.Service
+
 // Handler contains no business behavior; embedding composes the operation sets.
 type Handler struct {
 	*identityhttp.IdentityHandler
 	*organizationhttp.OrganizationHandler
 	*platformadminhttp.PlatformAdminHandler
 	*platformtenanthttp.PlatformTenantHandler
+	*provisioninghttp.ProvisioningHandler
 	*SystemHandler
 }
 
@@ -56,6 +62,7 @@ func New(deps Dependencies, cookieSecure bool, newCSRF func() (string, error)) *
 		OrganizationHandler:   organizationhttp.NewHandler(deps.Organization, deps.Authorizer, identityHandler, security),
 		PlatformAdminHandler:  platformAdminHandler,
 		PlatformTenantHandler: platformtenanthttp.NewHandler(deps.PlatformTenant, platformAdminHandler, security),
+		ProvisioningHandler:   provisioninghttp.NewHandler(deps.Provisioning, platformAdminHandler, security),
 		SystemHandler:         newSystemHandler(deps.Ready, security),
 	}
 }

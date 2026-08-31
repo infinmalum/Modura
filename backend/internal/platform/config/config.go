@@ -30,13 +30,14 @@ type Database struct{ URL string }
 
 // Auth contains authentication and session security configuration.
 type Auth struct {
-	Issuer           string
-	Audience         string
-	PlatformAudience string
-	SigningKeyID     string
-	SigningKey       []byte
-	AccessLifetime   time.Duration
-	RefreshLifetime  time.Duration
+	Issuer             string
+	Audience           string
+	PlatformAudience   string
+	SigningKeyID       string
+	SigningKey         []byte
+	AccessLifetime     time.Duration
+	RefreshLifetime    time.Duration
+	InvitationLifetime time.Duration
 }
 
 // HTTP contains HTTP server configuration.
@@ -91,6 +92,9 @@ func FromEnv() (Config, error) {
 		return Config{}, err
 	}
 	if auth.RefreshLifetime, err = duration("MODURA_AUTH_REFRESH_LIFETIME", 24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if auth.InvitationLifetime, err = duration("MODURA_AUTH_INVITATION_LIFETIME", 24*time.Hour); err != nil {
 		return Config{}, err
 	}
 	return Config{HTTP: httpConfig, Database: Database{URL: databaseURL}, Auth: auth}, nil

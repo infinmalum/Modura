@@ -29,11 +29,11 @@ type Authorizer interface {
 type Service interface {
 	ListDepartments(context.Context, identity.TenantID) ([]organization.DepartmentView, error)
 	ListPositions(context.Context, identity.TenantID) ([]organization.PositionView, error)
-	CreateDepartment(context.Context, identity.TenantID, *organization.DepartmentID, string, int) (organization.DepartmentID, error)
-	MoveDepartment(context.Context, identity.TenantID, organization.DepartmentID, organization.DepartmentID) error
-	DeleteDepartment(context.Context, identity.TenantID, organization.DepartmentID) error
-	CreatePosition(context.Context, identity.TenantID, string) (organization.PositionID, error)
-	AssignUser(context.Context, identity.TenantID, identity.UserID, organization.DepartmentID, *organization.PositionID) error
+	CreateDepartment(context.Context, organization.WriteContext, *organization.DepartmentID, string, int) (organization.DepartmentID, error)
+	MoveDepartment(context.Context, organization.WriteContext, organization.DepartmentID, organization.DepartmentID) error
+	DeleteDepartment(context.Context, organization.WriteContext, organization.DepartmentID) error
+	CreatePosition(context.Context, organization.WriteContext, string) (organization.PositionID, error)
+	AssignUser(context.Context, organization.WriteContext, identity.UserID, organization.DepartmentID, *organization.PositionID) error
 }
 
 // OrganizationHandler serves tenant-scoped organization operations.
@@ -96,7 +96,7 @@ func (h *OrganizationHandler) CreateDepartment(c *gin.Context, params generated.
 		return
 	}
 	parentID := organization.DepartmentID(request.ParentId.String())
-	id, err := h.service.CreateDepartment(c.Request.Context(), actor.TenantID, &parentID, request.Name, request.SortOrder)
+	id, err := h.service.CreateDepartment(c.Request.Context(), writeContext(c, actor), &parentID, request.Name, request.SortOrder)
 	if err != nil {
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
@@ -123,7 +123,7 @@ func (h *OrganizationHandler) MoveDepartment(c *gin.Context, departmentID genera
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
 	}
-	err := h.service.MoveDepartment(c.Request.Context(), actor.TenantID, organization.DepartmentID(departmentID.String()), organization.DepartmentID(request.ParentId.String()))
+	err := h.service.MoveDepartment(c.Request.Context(), writeContext(c, actor), organization.DepartmentID(departmentID.String()), organization.DepartmentID(request.ParentId.String()))
 	if errors.Is(err, organization.ErrNotFound) {
 		h.security.Problem(c, http.StatusNotFound, "not found")
 		return
@@ -144,7 +144,7 @@ func (h *OrganizationHandler) DeleteDepartment(c *gin.Context, departmentID gene
 	if !ok {
 		return
 	}
-	err := h.service.DeleteDepartment(c.Request.Context(), actor.TenantID, organization.DepartmentID(departmentID.String()))
+	err := h.service.DeleteDepartment(c.Request.Context(), writeContext(c, actor), organization.DepartmentID(departmentID.String()))
 	if errors.Is(err, organization.ErrNotFound) {
 		h.security.Problem(c, http.StatusNotFound, "not found")
 		return
@@ -193,7 +193,7 @@ func (h *OrganizationHandler) CreatePosition(c *gin.Context, params generated.Cr
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
 	}
-	id, err := h.service.CreatePosition(c.Request.Context(), actor.TenantID, request.Name)
+	id, err := h.service.CreatePosition(c.Request.Context(), writeContext(c, actor), request.Name)
 	if err != nil {
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
@@ -226,7 +226,7 @@ func (h *OrganizationHandler) AssignUserOrganization(c *gin.Context, userID gene
 		value := organization.PositionID(request.PositionId.String())
 		positionID = &value
 	}
-	if err := h.service.AssignUser(c.Request.Context(), actor.TenantID, identity.UserID(userID.String()), departmentID, positionID); err != nil {
+	if err := h.service.AssignUser(c.Request.Context(), writeContext(c, actor), identity.UserID(userID.String()), departmentID, positionID); err != nil {
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
 	}
@@ -255,4 +255,8 @@ func (h *OrganizationHandler) authorizedActor(c *gin.Context, permission authori
 func (h *OrganizationHandler) csrf(c *gin.Context, header string) bool {
 	_, ok := h.security.CookieAndCSRF(c, apihttp.TenantRefreshCookie, apihttp.TenantCSRFCookie, header)
 	return ok
+}
+
+func writeContext(c *gin.Context, actor identity.Actor) organization.WriteContext {
+	return organization.WriteContext{Actor: actor, CorrelationID: c.GetHeader("X-Request-ID")}
 }

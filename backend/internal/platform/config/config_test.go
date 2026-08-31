@@ -7,7 +7,7 @@ import (
 
 func TestFromEnvUsesDefaults(t *testing.T) {
 	setRequired(t)
-	for _, name := range []string{"MODURA_HTTP_ADDRESS", "MODURA_HTTP_READ_TIMEOUT", "MODURA_HTTP_WRITE_TIMEOUT", "MODURA_HTTP_IDLE_TIMEOUT", "MODURA_HTTP_SHUTDOWN_TIMEOUT", "MODURA_HTTP_MAX_HEADER_BYTES", "MODURA_AUTH_COOKIE_SECURE", "MODURA_AUTH_ACCESS_LIFETIME", "MODURA_AUTH_REFRESH_LIFETIME"} {
+	for _, name := range []string{"MODURA_HTTP_ADDRESS", "MODURA_HTTP_READ_TIMEOUT", "MODURA_HTTP_WRITE_TIMEOUT", "MODURA_HTTP_IDLE_TIMEOUT", "MODURA_HTTP_SHUTDOWN_TIMEOUT", "MODURA_HTTP_MAX_HEADER_BYTES", "MODURA_AUTH_COOKIE_SECURE", "MODURA_AUTH_ACCESS_LIFETIME", "MODURA_AUTH_REFRESH_LIFETIME", "MODURA_AUTH_INVITATION_LIFETIME"} {
 		t.Setenv(name, "")
 	}
 	cfg, err := FromEnv()
@@ -22,6 +22,9 @@ func TestFromEnvUsesDefaults(t *testing.T) {
 	}
 	if cfg.Auth.PlatformAudience != "modura-platform" {
 		t.Fatalf("PlatformAudience = %q", cfg.Auth.PlatformAudience)
+	}
+	if cfg.Auth.InvitationLifetime != 24*time.Hour {
+		t.Fatalf("InvitationLifetime = %v", cfg.Auth.InvitationLifetime)
 	}
 }
 
