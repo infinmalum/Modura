@@ -18,4 +18,23 @@ describe("permission navigation", () => {
   it("does not treat frontend navigation as a wildcard permission", () => {
     expect(visibleNavigation(new Set()).map((item) => item.key)).toEqual(["/"]);
   });
+
+  it("maps organization and authorization navigation to canonical permissions", () => {
+    const items = visibleNavigation(
+      new Set([
+        "organization.departments/read",
+        "organization.positions/read",
+        "authorization.user-roles/read",
+        "authorization.roles/read",
+      ]),
+    );
+
+    expect(items.map((item) => item.key)).toEqual([
+      "/",
+      "/organization/departments",
+      "/organization/positions",
+      "/organization/users",
+      "/authorization/roles",
+    ]);
+  });
 });

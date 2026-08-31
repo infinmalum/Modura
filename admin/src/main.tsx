@@ -7,6 +7,7 @@ import { RouterProvider } from "react-router-dom";
 
 import { router } from "./app/router";
 import { AuthProvider } from "./features/auth/AuthProvider";
+import { PlatformAuthProvider } from "./features/platform/platform-auth";
 import "./styles.css";
 
 const queryClient = new QueryClient({
@@ -19,7 +20,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <App>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <RouterProvider router={router} />
+            <PlatformAuthProvider>
+              <RouterProvider router={router} />
+            </PlatformAuthProvider>
           </AuthProvider>
         </QueryClientProvider>
       </App>

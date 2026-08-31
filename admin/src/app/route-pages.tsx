@@ -31,3 +31,35 @@ export const WorkspaceRoute = deferred(
   () => import("../features/workspace/Workspace"),
   (module) => module.Workspace,
 );
+export const DepartmentsRoute = deferred(
+  () => import("../features/organization/DepartmentsPage"),
+  (module) => module.DepartmentsPage,
+);
+export const PositionsRoute = deferred(
+  () => import("../features/organization/PositionsPage"),
+  (module) => module.PositionsPage,
+);
+export const UserAssignmentsRoute = deferred(
+  () => import("../features/organization/UserAssignmentsPage"),
+  (module) => module.UserAssignmentsPage,
+);
+export const RolesRoute = deferred(
+  () => import("../features/authorization/RolesPage"),
+  (module) => module.RolesPage,
+);
+export const RolePoliciesRoute = deferred(
+  () => import("../features/authorization/RolePoliciesPage"),
+  (module) => module.RolePoliciesPage,
+);
+export const PlatformTenantsRoute = deferred(
+  () => import("../features/platform/TenantsPage"),
+  (module) => module.TenantsPage,
+);
+export const PlatformDictionariesRoute = deferred(
+  () => import("../features/platform/PlatformDictionariesPage"),
+  (module) => module.PlatformDictionariesPage,
+);
+export const PlatformConfigurationsRoute = deferred(
+  () => import("../features/platform/PlatformConfigurationsPage"),
+  (module) => module.PlatformConfigurationsPage,
+);
