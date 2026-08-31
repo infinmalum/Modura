@@ -20,6 +20,8 @@ type ModuraAuditEvent struct {
 	Result        string             `json:"result"`
 	CorrelationID string             `json:"correlation_id"`
 	OccurredAt    pgtype.Timestamptz `json:"occurred_at"`
+	BeforeState   []byte             `json:"before_state"`
+	AfterState    []byte             `json:"after_state"`
 }
 
 type ModuraAuthOneTimeToken struct {
@@ -114,6 +116,25 @@ type ModuraRole struct {
 	Reserved  bool               `json:"reserved"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	Version   int64              `json:"version"`
+}
+
+type ModuraRolePolicy struct {
+	TenantID  pgtype.UUID        `json:"tenant_id"`
+	RoleID    pgtype.UUID        `json:"role_id"`
+	Resource  string             `json:"resource"`
+	Action    string             `json:"action"`
+	DataScope string             `json:"data_scope"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ModuraRolePolicyDepartment struct {
+	TenantID     pgtype.UUID `json:"tenant_id"`
+	RoleID       pgtype.UUID `json:"role_id"`
+	Resource     string      `json:"resource"`
+	Action       string      `json:"action"`
+	DepartmentID pgtype.UUID `json:"department_id"`
 }
 
 type ModuraTenant struct {
@@ -162,4 +183,11 @@ type ModuraUserRole struct {
 	UserID    pgtype.UUID        `json:"user_id"`
 	RoleID    pgtype.UUID        `json:"role_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type ModuraUserRoleVersion struct {
+	TenantID  pgtype.UUID        `json:"tenant_id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	Version   int64              `json:"version"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }

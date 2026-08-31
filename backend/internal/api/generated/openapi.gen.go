@@ -28,6 +28,33 @@ func (e AccessTokenResponseTokenType) Valid() bool {
 	}
 }
 
+// Defines values for DataScopeKind.
+const (
+	DataScopeKindAll                      DataScopeKind = "all"
+	DataScopeKindCustom                   DataScopeKind = "custom"
+	DataScopeKindDepartment               DataScopeKind = "department"
+	DataScopeKindDepartmentAndDescendants DataScopeKind = "department-and-descendants"
+	DataScopeKindSelf                     DataScopeKind = "self"
+)
+
+// Valid indicates whether the value is a known member of the DataScopeKind enum.
+func (e DataScopeKind) Valid() bool {
+	switch e {
+	case DataScopeKindAll:
+		return true
+	case DataScopeKindCustom:
+		return true
+	case DataScopeKindDepartment:
+		return true
+	case DataScopeKindDepartmentAndDescendants:
+		return true
+	case DataScopeKindSelf:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HealthStatusStatus.
 const (
 	Ok HealthStatusStatus = "ok"
@@ -82,6 +109,60 @@ func (e PositionStatus) Valid() bool {
 	}
 }
 
+// Defines values for RolePolicyAction.
+const (
+	Create RolePolicyAction = "create"
+	Delete RolePolicyAction = "delete"
+	Read   RolePolicyAction = "read"
+	Update RolePolicyAction = "update"
+)
+
+// Valid indicates whether the value is a known member of the RolePolicyAction enum.
+func (e RolePolicyAction) Valid() bool {
+	switch e {
+	case Create:
+		return true
+	case Delete:
+		return true
+	case Read:
+		return true
+	case Update:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RolePolicyResource.
+const (
+	AuthorizationPolicies        RolePolicyResource = "authorization.policies"
+	AuthorizationRoles           RolePolicyResource = "authorization.roles"
+	AuthorizationUserRoles       RolePolicyResource = "authorization.user-roles"
+	OrganizationDepartments      RolePolicyResource = "organization.departments"
+	OrganizationPositions        RolePolicyResource = "organization.positions"
+	OrganizationUserOrganization RolePolicyResource = "organization.user-organization"
+)
+
+// Valid indicates whether the value is a known member of the RolePolicyResource enum.
+func (e RolePolicyResource) Valid() bool {
+	switch e {
+	case AuthorizationPolicies:
+		return true
+	case AuthorizationRoles:
+		return true
+	case AuthorizationUserRoles:
+		return true
+	case OrganizationDepartments:
+		return true
+	case OrganizationPositions:
+		return true
+	case OrganizationUserOrganization:
+		return true
+	default:
+		return false
+	}
+}
+
 // AccessTokenResponse defines model for AccessTokenResponse.
 type AccessTokenResponse struct {
 	AccessToken string                       `json:"accessToken"`
@@ -116,6 +197,15 @@ type CreateDepartmentRequest struct {
 type CreatePositionRequest struct {
 	Name string `json:"name"`
 }
+
+// CreateRoleRequest defines model for CreateRoleRequest.
+type CreateRoleRequest struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+// DataScopeKind defines model for DataScopeKind.
+type DataScopeKind string
 
 // Department defines model for Department.
 type Department struct {
@@ -210,9 +300,62 @@ type ProvisionTenantResponse struct {
 	TenantId openapi_types.UUID `json:"tenantId"`
 }
 
+// ReplaceRolePoliciesRequest defines model for ReplaceRolePoliciesRequest.
+type ReplaceRolePoliciesRequest struct {
+	ExpectedVersion int64        `json:"expectedVersion"`
+	Policies        []RolePolicy `json:"policies"`
+}
+
+// ReplaceUserRoleGrantsRequest defines model for ReplaceUserRoleGrantsRequest.
+type ReplaceUserRoleGrantsRequest struct {
+	ExpectedVersion int64                `json:"expectedVersion"`
+	RoleIds         []openapi_types.UUID `json:"roleIds"`
+}
+
+// Role defines model for Role.
+type Role struct {
+	Code     string             `json:"code"`
+	Id       openapi_types.UUID `json:"id"`
+	Name     string             `json:"name"`
+	Reserved bool               `json:"reserved"`
+	Version  int64              `json:"version"`
+}
+
+// RolePolicy defines model for RolePolicy.
+type RolePolicy struct {
+	Action        RolePolicyAction      `json:"action"`
+	DataScope     DataScopeKind         `json:"dataScope"`
+	DepartmentIds *[]openapi_types.UUID `json:"departmentIds,omitempty"`
+	Resource      RolePolicyResource    `json:"resource"`
+}
+
+// RolePolicyAction defines model for RolePolicy.Action.
+type RolePolicyAction string
+
+// RolePolicyResource defines model for RolePolicy.Resource.
+type RolePolicyResource string
+
+// RolePolicySet defines model for RolePolicySet.
+type RolePolicySet struct {
+	Policies []RolePolicy `json:"policies"`
+	Reserved bool         `json:"reserved"`
+	Version  int64        `json:"version"`
+}
+
 // TenantLifecycleRequest defines model for TenantLifecycleRequest.
 type TenantLifecycleRequest struct {
 	Reason string `json:"reason"`
+}
+
+// UserRoleGrantSet defines model for UserRoleGrantSet.
+type UserRoleGrantSet struct {
+	RoleIds []openapi_types.UUID `json:"roleIds"`
+	Version int64                `json:"version"`
+}
+
+// VersionResponse defines model for VersionResponse.
+type VersionResponse struct {
+	Version int64 `json:"version"`
 }
 
 // CsrfToken defines model for CsrfToken.
@@ -223,6 +366,9 @@ type DepartmentId = openapi_types.UUID
 
 // IdempotencyKey defines model for IdempotencyKey.
 type IdempotencyKey = openapi_types.UUID
+
+// RoleId defines model for RoleId.
+type RoleId = openapi_types.UUID
 
 // TenantId defines model for TenantId.
 type TenantId = openapi_types.UUID
@@ -256,6 +402,21 @@ type ChangePasswordParams struct {
 
 // RefreshParams defines parameters for Refresh.
 type RefreshParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// CreateRoleParams defines parameters for CreateRole.
+type CreateRoleParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// ReplaceRolePoliciesParams defines parameters for ReplaceRolePolicies.
+type ReplaceRolePoliciesParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// ReplaceUserRoleGrantsParams defines parameters for ReplaceUserRoleGrants.
+type ReplaceUserRoleGrantsParams struct {
 	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
 }
 
@@ -317,6 +478,15 @@ type ChangePasswordJSONRequestBody = ChangePasswordRequest
 // ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
 type ResetPasswordJSONRequestBody = OneTimeCredentialRequest
 
+// CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
+type CreateRoleJSONRequestBody = CreateRoleRequest
+
+// ReplaceRolePoliciesJSONRequestBody defines body for ReplaceRolePolicies for application/json ContentType.
+type ReplaceRolePoliciesJSONRequestBody = ReplaceRolePoliciesRequest
+
+// ReplaceUserRoleGrantsJSONRequestBody defines body for ReplaceUserRoleGrants for application/json ContentType.
+type ReplaceUserRoleGrantsJSONRequestBody = ReplaceUserRoleGrantsRequest
+
 // CreateDepartmentJSONRequestBody defines body for CreateDepartment for application/json ContentType.
 type CreateDepartmentJSONRequestBody = CreateDepartmentRequest
 
@@ -364,6 +534,24 @@ type ServerInterface interface {
 	// Refresh Rotate the refresh secret and issue an access token
 	// (POST /auth/refresh)
 	Refresh(c *gin.Context, params RefreshParams)
+	// ListRoles List roles in the authenticated tenant
+	// (GET /authorization/roles)
+	ListRoles(c *gin.Context)
+	// CreateRole Create an empty non-reserved tenant role
+	// (POST /authorization/roles)
+	CreateRole(c *gin.Context, params CreateRoleParams)
+	// GetRolePolicySet Read a role's versioned policy desired state
+	// (GET /authorization/roles/{roleId}/policies)
+	GetRolePolicySet(c *gin.Context, roleId RoleId)
+	// ReplaceRolePolicies Replace a non-reserved role's policy desired state
+	// (PUT /authorization/roles/{roleId}/policies)
+	ReplaceRolePolicies(c *gin.Context, roleId RoleId, params ReplaceRolePoliciesParams)
+	// GetUserRoleGrants Read a user's versioned role desired state
+	// (GET /authorization/users/{userId}/roles)
+	GetUserRoleGrants(c *gin.Context, userId UserId)
+	// ReplaceUserRoleGrants Replace a user's non-reserved role grants with optimistic locking
+	// (PUT /authorization/users/{userId}/roles)
+	ReplaceUserRoleGrants(c *gin.Context, userId UserId, params ReplaceUserRoleGrantsParams)
 	// GetLiveness Report whether the process is alive
 	// (GET /livez)
 	GetLiveness(c *gin.Context)
@@ -629,6 +817,216 @@ func (siw *ServerInterfaceWrapper) Refresh(c *gin.Context) {
 	}
 
 	siw.Handler.Refresh(c, params)
+}
+
+// ListRoles operation middleware
+func (siw *ServerInterfaceWrapper) ListRoles(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListRoles(c)
+}
+
+// CreateRole operation middleware
+func (siw *ServerInterfaceWrapper) CreateRole(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateRoleParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateRole(c, params)
+}
+
+// GetRolePolicySet operation middleware
+func (siw *ServerInterfaceWrapper) GetRolePolicySet(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "roleId" -------------
+	var roleId RoleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "roleId", c.Param("roleId"), &roleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter roleId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetRolePolicySet(c, roleId)
+}
+
+// ReplaceRolePolicies operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceRolePolicies(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "roleId" -------------
+	var roleId RoleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "roleId", c.Param("roleId"), &roleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter roleId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReplaceRolePoliciesParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReplaceRolePolicies(c, roleId, params)
+}
+
+// GetUserRoleGrants operation middleware
+func (siw *ServerInterfaceWrapper) GetUserRoleGrants(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUserRoleGrants(c, userId)
+}
+
+// ReplaceUserRoleGrants operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceUserRoleGrants(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReplaceUserRoleGrantsParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReplaceUserRoleGrants(c, userId, params)
 }
 
 // GetLiveness operation middleware
@@ -1212,4 +1610,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/organization/positions", wrapper.ListPositions)
 	router.POST(options.BaseURL+"/organization/positions", wrapper.CreatePosition)
 	router.PUT(options.BaseURL+"/organization/users/:userId/assignment", wrapper.AssignUserOrganization)
+	router.GET(options.BaseURL+"/authorization/roles", wrapper.ListRoles)
+	router.POST(options.BaseURL+"/authorization/roles", wrapper.CreateRole)
+	router.GET(options.BaseURL+"/authorization/roles/:roleId/policies", wrapper.GetRolePolicySet)
+	router.PUT(options.BaseURL+"/authorization/roles/:roleId/policies", wrapper.ReplaceRolePolicies)
+	router.GET(options.BaseURL+"/authorization/users/:userId/roles", wrapper.GetUserRoleGrants)
+	router.PUT(options.BaseURL+"/authorization/users/:userId/roles", wrapper.ReplaceUserRoleGrants)
 }

@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -37,6 +38,9 @@ func (s *Service) RecordTenantWrite(ctx context.Context, tx pgx.Tx, event Event)
 	event.CorrelationID = strings.TrimSpace(event.CorrelationID)
 	if tx == nil || event.ActorID == "" || event.TenantID == "" || event.Action == "" || event.Resource == "" || event.ResourceID == "" || event.Reason == "" || event.CorrelationID == "" || event.OccurredAt.IsZero() {
 		return fmt.Errorf("invalid tenant audit event")
+	}
+	if (len(event.BeforeState) > 0 && !json.Valid(event.BeforeState)) || (len(event.AfterState) > 0 && !json.Valid(event.AfterState)) {
+		return fmt.Errorf("invalid tenant audit state")
 	}
 	id, err := s.newID(event.OccurredAt)
 	if err != nil {

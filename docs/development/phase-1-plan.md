@@ -64,7 +64,25 @@ Planning basis: Project Constitution, executable agent contract, and SpringBlade
   write and its audit event commit in the same PostgreSQL transaction through
   the audit module's owned persistence API; integration evidence proves that an
   audit failure rolls the business write back. Stage 2 exit criteria are met.
-- Stages 3–5: pending.
+- Stage 3: complete on 2026-08-31. Canonical resource/action identifiers are
+  mapped from every protected tenant OpenAPI operation and checked by an
+  automated contract test. PostgreSQL owns tenant roles, policies, custom
+  department scopes, assignments, and optimistic-lock versions; Casbin
+  evaluates tenant-domain RBAC from server-loaded policy snapshots. Reserved
+  tenant-administrator policies are provisioned atomically and cannot be
+  changed or delegated through tenant APIs. Role creation, versioned policy
+  reads/replacement, and versioned desired-state non-reserved user-role grants
+  are exposed through module-local HTTP delivery with CSRF, tenant checks,
+  delegated-administration non-escalation, and before/after audit snapshots in
+  the same transaction. Multiple roles combine allow policies and scopes by
+  documented union semantics without explicit deny. Typed `all`, `self`,
+  `department`, `department-and-descendants`, and custom-department scopes are
+  enforced in organization read and write SQL; catalog and authorization
+  administration accept only meaningful `all` scope. Unit, HTTP-negative, and
+  real-PostgreSQL tests cover policy denial, tenant isolation, every supported
+  scope, write-scope rejection, stale desired-state updates, and durable audit
+  evidence. Stage 3 exit criteria are met.
+- Stages 4–5: pending.
 
 ## Goal
 

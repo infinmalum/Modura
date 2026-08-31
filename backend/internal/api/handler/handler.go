@@ -6,6 +6,7 @@ import (
 
 	"github.com/modura-dev/modura/backend/internal/api/generated"
 	apihttp "github.com/modura-dev/modura/backend/internal/api/transport"
+	authorizationhttp "github.com/modura-dev/modura/backend/internal/modules/authorization/transport/http"
 	identityhttp "github.com/modura-dev/modura/backend/internal/modules/identity/transport/http"
 	organizationhttp "github.com/modura-dev/modura/backend/internal/modules/organization/transport/http"
 	platformadminhttp "github.com/modura-dev/modura/backend/internal/modules/platformadmin/transport/http"
@@ -17,6 +18,7 @@ import (
 type Dependencies struct {
 	Identity       identityhttp.Service
 	Authorizer     organizationhttp.Authorizer
+	Authorization  authorizationhttp.Service
 	Organization   organizationhttp.Service
 	PlatformAdmin  platformadminhttp.Service
 	PlatformTenant platformtenanthttp.Service
@@ -29,6 +31,9 @@ type Identity = identityhttp.Service
 
 // Authorizer is the permission API consumed by organization HTTP delivery.
 type Authorizer = organizationhttp.Authorizer
+
+// Authorization is the tenant role and policy API consumed by HTTP delivery.
+type Authorization = authorizationhttp.Service
 
 // Organization is the organization API consumed by HTTP delivery.
 type Organization = organizationhttp.Service
@@ -45,6 +50,7 @@ type Provisioning = provisioninghttp.Service
 // Handler contains no business behavior; embedding composes the operation sets.
 type Handler struct {
 	*identityhttp.IdentityHandler
+	*authorizationhttp.AuthorizationHandler
 	*organizationhttp.OrganizationHandler
 	*platformadminhttp.PlatformAdminHandler
 	*platformtenanthttp.PlatformTenantHandler
@@ -59,6 +65,7 @@ func New(deps Dependencies, cookieSecure bool, newCSRF func() (string, error)) *
 	platformAdminHandler := platformadminhttp.NewHandler(deps.PlatformAdmin, security)
 	return &Handler{
 		IdentityHandler:       identityHandler,
+		AuthorizationHandler:  authorizationhttp.NewHandler(deps.Authorization, identityHandler, security),
 		OrganizationHandler:   organizationhttp.NewHandler(deps.Organization, deps.Authorizer, identityHandler, security),
 		PlatformAdminHandler:  platformAdminHandler,
 		PlatformTenantHandler: platformtenanthttp.NewHandler(deps.PlatformTenant, platformAdminHandler, security),

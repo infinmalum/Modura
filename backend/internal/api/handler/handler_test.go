@@ -32,6 +32,13 @@ func (s authorizerStub) Authorize(context.Context, identity.Actor, authorization
 	return nil
 }
 
+func (s authorizerStub) ResolveDataScope(context.Context, identity.Actor, authorization.Permission) (authorization.ResolvedDataScope, error) {
+	if s.denied {
+		return authorization.ResolvedDataScope{}, authorization.ErrDenied
+	}
+	return authorization.ResolvedDataScope{All: true}, nil
+}
+
 type organizationStub struct{}
 
 type platformAdminStub struct{}
@@ -82,7 +89,7 @@ func (platformTenantStub) Reactivate(context.Context, platformadmin.Actor, ident
 	return nil
 }
 
-func (organizationStub) ListDepartments(context.Context, identity.TenantID) ([]organization.DepartmentView, error) {
+func (organizationStub) ListDepartments(context.Context, identity.TenantID, organization.DataScope) ([]organization.DepartmentView, error) {
 	return nil, nil
 }
 func (organizationStub) ListPositions(context.Context, identity.TenantID) ([]organization.PositionView, error) {

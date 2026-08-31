@@ -198,6 +198,99 @@ export interface AssignUserOrganizationRequest {
   positionId?: string | null;
 }
 
+export interface Role {
+  id: string;
+  code: string;
+  name: string;
+  reserved: boolean;
+  /** @minimum 1 */
+  version: number;
+}
+
+export interface CreateRoleRequest {
+  /**
+   * @minLength 1
+   * @maxLength 63
+   * @pattern ^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$
+   */
+  code: string;
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string;
+}
+
+export type DataScopeKind = (typeof DataScopeKind)[keyof typeof DataScopeKind];
+
+export const DataScopeKind = {
+  all: "all",
+  self: "self",
+  department: "department",
+  "department-and-descendants": "department-and-descendants",
+  custom: "custom",
+} as const;
+
+export type RolePolicyResource =
+  (typeof RolePolicyResource)[keyof typeof RolePolicyResource];
+
+export const RolePolicyResource = {
+  organizationdepartments: "organization.departments",
+  organizationpositions: "organization.positions",
+  "organizationuser-organization": "organization.user-organization",
+  authorizationroles: "authorization.roles",
+  authorizationpolicies: "authorization.policies",
+  "authorizationuser-roles": "authorization.user-roles",
+} as const;
+
+export type RolePolicyAction =
+  (typeof RolePolicyAction)[keyof typeof RolePolicyAction];
+
+export const RolePolicyAction = {
+  read: "read",
+  create: "create",
+  update: "update",
+  delete: "delete",
+} as const;
+
+export interface RolePolicy {
+  resource: RolePolicyResource;
+  action: RolePolicyAction;
+  dataScope: DataScopeKind;
+  departmentIds?: string[];
+}
+
+export interface ReplaceRolePoliciesRequest {
+  /** @minimum 1 */
+  expectedVersion: number;
+  /** @maxItems 24 */
+  policies: RolePolicy[];
+}
+
+export interface RolePolicySet {
+  /** @minimum 1 */
+  version: number;
+  reserved: boolean;
+  policies: RolePolicy[];
+}
+
+export interface VersionResponse {
+  /** @minimum 1 */
+  version: number;
+}
+
+export interface UserRoleGrantSet {
+  /** @minimum 1 */
+  version: number;
+  roleIds: string[];
+}
+
+export interface ReplaceUserRoleGrantsRequest {
+  /** @minimum 1 */
+  expectedVersion: number;
+  roleIds: string[];
+}
+
 export type AccessTokenResponseTokenType =
   (typeof AccessTokenResponseTokenType)[keyof typeof AccessTokenResponseTokenType];
 
@@ -3515,6 +3608,1081 @@ export const useAssignUserOrganization = <
 > => {
   return useMutation(
     getAssignUserOrganizationMutationOptions(options),
+    queryClient,
+  );
+};
+
+export type listRolesResponse200 = {
+  data: Role[];
+  status: 200;
+};
+
+export type listRolesResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type listRolesResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type listRolesResponseSuccess = listRolesResponse200 & {
+  headers: Headers;
+};
+export type listRolesResponseError = (
+  listRolesResponse401 | listRolesResponse403
+) & {
+  headers: Headers;
+};
+
+export type listRolesResponse =
+  listRolesResponseSuccess | listRolesResponseError;
+
+export const getListRolesUrl = () => {
+  return `/api/authorization/roles`;
+};
+
+/**
+ * @summary List roles in the authenticated tenant
+ */
+export const listRoles = async (
+  options?: RequestInit,
+): Promise<listRolesResponse> => {
+  const res = await fetch(getListRolesUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listRolesResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listRolesResponse;
+};
+
+export const getListRolesQueryKey = () => {
+  return [`/api/authorization/roles`] as const;
+};
+
+export const getListRolesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRoles>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listRoles>>, TError, TData>
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRolesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listRoles>>> = ({
+    signal,
+  }) => listRoles({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRoles>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListRolesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRoles>>
+>;
+export type ListRolesQueryError =
+  AuthenticationFailedResponse | AuthorizationFailedResponse;
+
+export function useListRoles<
+  TData = Awaited<ReturnType<typeof listRoles>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listRoles>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRoles>>,
+          TError,
+          Awaited<ReturnType<typeof listRoles>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListRoles<
+  TData = Awaited<ReturnType<typeof listRoles>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listRoles>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRoles>>,
+          TError,
+          Awaited<ReturnType<typeof listRoles>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListRoles<
+  TData = Awaited<ReturnType<typeof listRoles>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listRoles>>, TError, TData>
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List roles in the authenticated tenant
+ */
+
+export function useListRoles<
+  TData = Awaited<ReturnType<typeof listRoles>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listRoles>>, TError, TData>
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getListRolesQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type createRoleResponse201 = {
+  data: Role;
+  status: 201;
+};
+
+export type createRoleResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type createRoleResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type createRoleResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type createRoleResponseSuccess = createRoleResponse201 & {
+  headers: Headers;
+};
+export type createRoleResponseError = (
+  createRoleResponse400 | createRoleResponse401 | createRoleResponse403
+) & {
+  headers: Headers;
+};
+
+export type createRoleResponse =
+  createRoleResponseSuccess | createRoleResponseError;
+
+export const getCreateRoleUrl = () => {
+  return `/api/authorization/roles`;
+};
+
+/**
+ * @summary Create an empty non-reserved tenant role
+ */
+export const createRole = async (
+  createRoleRequest: CreateRoleRequest,
+  options?: RequestInit,
+): Promise<createRoleResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getCreateRoleUrl(), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(createRoleRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createRoleResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as createRoleResponse;
+};
+
+export const getCreateRoleMutationOptions = <
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRole>>,
+    TError,
+    CreateRoleMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRole>>,
+  TError,
+  CreateRoleMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["createRole"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRole>>,
+    CreateRoleMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createRole(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRoleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRole>>
+>;
+export type CreateRoleMutationBody = CreateRoleRequest;
+export type CreateRoleMutationError =
+  void | AuthenticationFailedResponse | AuthorizationFailedResponse;
+export type CreateRoleMutationVariables = { data: CreateRoleRequest };
+
+/**
+ * @summary Create an empty non-reserved tenant role
+ */
+export const useCreateRole = <
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createRole>>,
+      TError,
+      CreateRoleMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof createRole>>,
+  TError,
+  CreateRoleMutationVariables,
+  TContext
+> => {
+  return useMutation(getCreateRoleMutationOptions(options), queryClient);
+};
+
+export type getRolePolicySetResponse200 = {
+  data: RolePolicySet;
+  status: 200;
+};
+
+export type getRolePolicySetResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type getRolePolicySetResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type getRolePolicySetResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type getRolePolicySetResponseSuccess = getRolePolicySetResponse200 & {
+  headers: Headers;
+};
+export type getRolePolicySetResponseError = (
+  | getRolePolicySetResponse401
+  | getRolePolicySetResponse403
+  | getRolePolicySetResponse404
+) & {
+  headers: Headers;
+};
+
+export type getRolePolicySetResponse =
+  getRolePolicySetResponseSuccess | getRolePolicySetResponseError;
+
+export const getGetRolePolicySetUrl = (roleId: string) => {
+  return `/api/authorization/roles/${roleId}/policies`;
+};
+
+/**
+ * @summary Read a role's versioned policy desired state
+ */
+export const getRolePolicySet = async (
+  roleId: string,
+  options?: RequestInit,
+): Promise<getRolePolicySetResponse> => {
+  const res = await fetch(getGetRolePolicySetUrl(roleId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getRolePolicySetResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as getRolePolicySetResponse;
+};
+
+export const getGetRolePolicySetQueryKey = (roleId: string) => {
+  return [`/api/authorization/roles/${roleId}/policies`] as const;
+};
+
+export const getGetRolePolicySetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRolePolicySet>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+>(
+  roleId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRolePolicySet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetRolePolicySetQueryKey(roleId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getRolePolicySet>>
+  > = ({ signal }) => getRolePolicySet(roleId, { signal, ...fetchOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: roleId !== null && roleId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRolePolicySet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetRolePolicySetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRolePolicySet>>
+>;
+export type GetRolePolicySetQueryError =
+  AuthenticationFailedResponse | AuthorizationFailedResponse | void;
+
+export function useGetRolePolicySet<
+  TData = Awaited<ReturnType<typeof getRolePolicySet>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+>(
+  roleId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRolePolicySet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRolePolicySet>>,
+          TError,
+          Awaited<ReturnType<typeof getRolePolicySet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetRolePolicySet<
+  TData = Awaited<ReturnType<typeof getRolePolicySet>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+>(
+  roleId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRolePolicySet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRolePolicySet>>,
+          TError,
+          Awaited<ReturnType<typeof getRolePolicySet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetRolePolicySet<
+  TData = Awaited<ReturnType<typeof getRolePolicySet>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+>(
+  roleId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRolePolicySet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Read a role's versioned policy desired state
+ */
+
+export function useGetRolePolicySet<
+  TData = Awaited<ReturnType<typeof getRolePolicySet>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+>(
+  roleId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRolePolicySet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetRolePolicySetQueryOptions(roleId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type replaceRolePoliciesResponse200 = {
+  data: VersionResponse;
+  status: 200;
+};
+
+export type replaceRolePoliciesResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type replaceRolePoliciesResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type replaceRolePoliciesResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type replaceRolePoliciesResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type replaceRolePoliciesResponse409 = {
+  data: void;
+  status: 409;
+};
+
+export type replaceRolePoliciesResponseSuccess =
+  replaceRolePoliciesResponse200 & {
+    headers: Headers;
+  };
+export type replaceRolePoliciesResponseError = (
+  | replaceRolePoliciesResponse400
+  | replaceRolePoliciesResponse401
+  | replaceRolePoliciesResponse403
+  | replaceRolePoliciesResponse404
+  | replaceRolePoliciesResponse409
+) & {
+  headers: Headers;
+};
+
+export type replaceRolePoliciesResponse =
+  replaceRolePoliciesResponseSuccess | replaceRolePoliciesResponseError;
+
+export const getReplaceRolePoliciesUrl = (roleId: string) => {
+  return `/api/authorization/roles/${roleId}/policies`;
+};
+
+/**
+ * @summary Replace a non-reserved role's policy desired state
+ */
+export const replaceRolePolicies = async (
+  roleId: string,
+  replaceRolePoliciesRequest: ReplaceRolePoliciesRequest,
+  options?: RequestInit,
+): Promise<replaceRolePoliciesResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getReplaceRolePoliciesUrl(roleId), {
+    ...options,
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(replaceRolePoliciesRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: replaceRolePoliciesResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as replaceRolePoliciesResponse;
+};
+
+export const getReplaceRolePoliciesMutationOptions = <
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replaceRolePolicies>>,
+    TError,
+    ReplaceRolePoliciesMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof replaceRolePolicies>>,
+  TError,
+  ReplaceRolePoliciesMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["replaceRolePolicies"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof replaceRolePolicies>>,
+    ReplaceRolePoliciesMutationVariables
+  > = (props) => {
+    const { roleId, data } = props ?? {};
+
+    return replaceRolePolicies(roleId, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReplaceRolePoliciesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof replaceRolePolicies>>
+>;
+export type ReplaceRolePoliciesMutationBody = ReplaceRolePoliciesRequest;
+export type ReplaceRolePoliciesMutationError =
+  void | AuthenticationFailedResponse | AuthorizationFailedResponse;
+export type ReplaceRolePoliciesMutationVariables = {
+  roleId: string;
+  data: ReplaceRolePoliciesRequest;
+};
+
+/**
+ * @summary Replace a non-reserved role's policy desired state
+ */
+export const useReplaceRolePolicies = <
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof replaceRolePolicies>>,
+      TError,
+      ReplaceRolePoliciesMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof replaceRolePolicies>>,
+  TError,
+  ReplaceRolePoliciesMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getReplaceRolePoliciesMutationOptions(options),
+    queryClient,
+  );
+};
+
+export type getUserRoleGrantsResponse200 = {
+  data: UserRoleGrantSet;
+  status: 200;
+};
+
+export type getUserRoleGrantsResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type getUserRoleGrantsResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type getUserRoleGrantsResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type getUserRoleGrantsResponseSuccess = getUserRoleGrantsResponse200 & {
+  headers: Headers;
+};
+export type getUserRoleGrantsResponseError = (
+  | getUserRoleGrantsResponse401
+  | getUserRoleGrantsResponse403
+  | getUserRoleGrantsResponse404
+) & {
+  headers: Headers;
+};
+
+export type getUserRoleGrantsResponse =
+  getUserRoleGrantsResponseSuccess | getUserRoleGrantsResponseError;
+
+export const getGetUserRoleGrantsUrl = (userId: string) => {
+  return `/api/authorization/users/${userId}/roles`;
+};
+
+/**
+ * @summary Read a user's versioned role desired state
+ */
+export const getUserRoleGrants = async (
+  userId: string,
+  options?: RequestInit,
+): Promise<getUserRoleGrantsResponse> => {
+  const res = await fetch(getGetUserRoleGrantsUrl(userId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getUserRoleGrantsResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as getUserRoleGrantsResponse;
+};
+
+export const getGetUserRoleGrantsQueryKey = (userId: string) => {
+  return [`/api/authorization/users/${userId}/roles`] as const;
+};
+
+export const getGetUserRoleGrantsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserRoleGrants>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+>(
+  userId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUserRoleGrants>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUserRoleGrantsQueryKey(userId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUserRoleGrants>>
+  > = ({ signal }) => getUserRoleGrants(userId, { signal, ...fetchOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: userId !== null && userId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUserRoleGrants>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetUserRoleGrantsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUserRoleGrants>>
+>;
+export type GetUserRoleGrantsQueryError =
+  AuthenticationFailedResponse | AuthorizationFailedResponse | void;
+
+export function useGetUserRoleGrants<
+  TData = Awaited<ReturnType<typeof getUserRoleGrants>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+>(
+  userId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUserRoleGrants>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserRoleGrants>>,
+          TError,
+          Awaited<ReturnType<typeof getUserRoleGrants>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetUserRoleGrants<
+  TData = Awaited<ReturnType<typeof getUserRoleGrants>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+>(
+  userId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUserRoleGrants>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserRoleGrants>>,
+          TError,
+          Awaited<ReturnType<typeof getUserRoleGrants>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetUserRoleGrants<
+  TData = Awaited<ReturnType<typeof getUserRoleGrants>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+>(
+  userId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUserRoleGrants>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Read a user's versioned role desired state
+ */
+
+export function useGetUserRoleGrants<
+  TData = Awaited<ReturnType<typeof getUserRoleGrants>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+>(
+  userId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUserRoleGrants>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetUserRoleGrantsQueryOptions(userId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type replaceUserRoleGrantsResponse200 = {
+  data: UserRoleGrantSet;
+  status: 200;
+};
+
+export type replaceUserRoleGrantsResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type replaceUserRoleGrantsResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type replaceUserRoleGrantsResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type replaceUserRoleGrantsResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type replaceUserRoleGrantsResponse409 = {
+  data: void;
+  status: 409;
+};
+
+export type replaceUserRoleGrantsResponseSuccess =
+  replaceUserRoleGrantsResponse200 & {
+    headers: Headers;
+  };
+export type replaceUserRoleGrantsResponseError = (
+  | replaceUserRoleGrantsResponse400
+  | replaceUserRoleGrantsResponse401
+  | replaceUserRoleGrantsResponse403
+  | replaceUserRoleGrantsResponse404
+  | replaceUserRoleGrantsResponse409
+) & {
+  headers: Headers;
+};
+
+export type replaceUserRoleGrantsResponse =
+  replaceUserRoleGrantsResponseSuccess | replaceUserRoleGrantsResponseError;
+
+export const getReplaceUserRoleGrantsUrl = (userId: string) => {
+  return `/api/authorization/users/${userId}/roles`;
+};
+
+/**
+ * @summary Replace a user's non-reserved role grants with optimistic locking
+ */
+export const replaceUserRoleGrants = async (
+  userId: string,
+  replaceUserRoleGrantsRequest: ReplaceUserRoleGrantsRequest,
+  options?: RequestInit,
+): Promise<replaceUserRoleGrantsResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getReplaceUserRoleGrantsUrl(userId), {
+    ...options,
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(replaceUserRoleGrantsRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: replaceUserRoleGrantsResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as replaceUserRoleGrantsResponse;
+};
+
+export const getReplaceUserRoleGrantsMutationOptions = <
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replaceUserRoleGrants>>,
+    TError,
+    ReplaceUserRoleGrantsMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof replaceUserRoleGrants>>,
+  TError,
+  ReplaceUserRoleGrantsMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["replaceUserRoleGrants"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof replaceUserRoleGrants>>,
+    ReplaceUserRoleGrantsMutationVariables
+  > = (props) => {
+    const { userId, data } = props ?? {};
+
+    return replaceUserRoleGrants(userId, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReplaceUserRoleGrantsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof replaceUserRoleGrants>>
+>;
+export type ReplaceUserRoleGrantsMutationBody = ReplaceUserRoleGrantsRequest;
+export type ReplaceUserRoleGrantsMutationError =
+  void | AuthenticationFailedResponse | AuthorizationFailedResponse;
+export type ReplaceUserRoleGrantsMutationVariables = {
+  userId: string;
+  data: ReplaceUserRoleGrantsRequest;
+};
+
+/**
+ * @summary Replace a user's non-reserved role grants with optimistic locking
+ */
+export const useReplaceUserRoleGrants = <
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof replaceUserRoleGrants>>,
+      TError,
+      ReplaceUserRoleGrantsMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof replaceUserRoleGrants>>,
+  TError,
+  ReplaceUserRoleGrantsMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getReplaceUserRoleGrantsMutationOptions(options),
     queryClient,
   );
 };

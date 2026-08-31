@@ -79,6 +79,34 @@ func TestProvisionIsAtomicAndIdempotent(t *testing.T) {
 	if err := authorizationService.Authorize(context.Background(), administrator, authorization.Permission{Resource: authorization.ResourcePositions, Action: authorization.ActionDelete}); !errors.Is(err, authorization.ErrDenied) {
 		t.Fatalf("unregistered destructive permission error = %v", err)
 	}
+	if err := authorizationService.EnableManagement(authorizationpostgres.New(pool), database.NewTransactor(pool), auditService, func() time.Time { return now }, managementIDs()); err != nil {
+		t.Fatal(err)
+	}
+	write := authorization.WriteContext{Actor: administrator, CorrelationID: "request-authorization-1"}
+	role, err := authorizationService.CreateRole(context.Background(), write, "department-reader", "Department Reader")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := authorization.Policy{Permission: authorization.Permission{Resource: authorization.ResourceDepartments, Action: authorization.ActionRead}, Scope: authorization.DataScopeDepartmentDescendants}
+	version, err := authorizationService.ReplaceRolePolicies(context.Background(), write, role.ID, role.Version, []authorization.Policy{policy})
+	if err != nil || version != 2 {
+		t.Fatalf("replace policies version=%d err=%v", version, err)
+	}
+	grants, err := authorizationService.GetUserRoleGrants(context.Background(), administrator, administrator.UserID)
+	if err != nil || grants.Version != 1 || len(grants.RoleIDs) != 0 {
+		t.Fatalf("initial non-reserved grants=%+v err=%v", grants, err)
+	}
+	grants, err = authorizationService.ReplaceUserRoleGrants(context.Background(), write, administrator.UserID, grants.Version, []authorization.RoleID{role.ID})
+	if err != nil || grants.Version != 2 || len(grants.RoleIDs) != 1 || grants.RoleIDs[0] != role.ID {
+		t.Fatalf("replaced grants=%+v err=%v", grants, err)
+	}
+	if _, err := authorizationService.ReplaceUserRoleGrants(context.Background(), write, administrator.UserID, 1, nil); !errors.Is(err, authorization.ErrConflict) {
+		t.Fatalf("stale grant error=%v", err)
+	}
+	var stateAudits int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM modura.audit_events WHERE tenant_id = $1 AND action LIKE 'authorization.%' AND after_state IS NOT NULL`, first.TenantID).Scan(&stateAudits); err != nil || stateAudits != 3 {
+		t.Fatalf("authorization state audits=%d err=%v", stateAudits, err)
+	}
 	nonAdministrator := identity.Actor{TenantID: first.TenantID, UserID: "018bcfe5-6800-7000-8000-000000000999", SessionID: "verified-session"}
 	if err := authorizationService.Authorize(context.Background(), nonAdministrator, authorization.Permission{Resource: authorization.ResourceDepartments, Action: authorization.ActionRead}); !errors.Is(err, authorization.ErrDenied) {
 		t.Fatalf("non-administrator permission error = %v", err)
@@ -131,6 +159,14 @@ func sequentialIDs() func(time.Time) (string, error) {
 	}
 }
 
+func managementIDs() func(time.Time) (string, error) {
+	sequence := 0
+	return func(time.Time) (string, error) {
+		sequence++
+		return fmt.Sprintf("018bcfe5-6800-7000-9000-%012d", 800+sequence), nil
+	}
+}
+
 func integrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	url := os.Getenv("MODURA_TEST_DATABASE_URL")
@@ -165,7 +201,7 @@ func integrationPool(t *testing.T) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), "DROP SCHEMA IF EXISTS modura CASCADE") })
-	for _, name := range []string{"000001_initialize.up.sql", "000002_identity_foundation.up.sql", "000003_organization_foundation.up.sql", "000004_authorization_and_provisioning.up.sql", "000005_platform_identity.up.sql", "000006_platform_tenant_audit.up.sql"} {
+	for _, name := range []string{"000001_initialize.up.sql", "000002_identity_foundation.up.sql", "000003_organization_foundation.up.sql", "000004_authorization_and_provisioning.up.sql", "000005_platform_identity.up.sql", "000006_platform_tenant_audit.up.sql", "000007_authorization_policies.up.sql", "000008_audit_state_snapshots.up.sql"} {
 		migration, err := os.ReadFile(filepath.Join("..", "..", "platform", "database", "migrations", name))
 		if err != nil {
 			t.Fatal(err)

@@ -15,28 +15,28 @@ type storeStub struct {
 	position   Position
 }
 
-func (*storeStub) ListDepartments(context.Context, identity.TenantID) ([]DepartmentView, error) {
+func (*storeStub) ListDepartments(context.Context, identity.TenantID, DataScope) ([]DepartmentView, error) {
 	return nil, nil
 }
 func (*storeStub) ListPositions(context.Context, identity.TenantID) ([]PositionView, error) {
 	return nil, nil
 }
 
-func (s *storeStub) CreateDepartment(_ context.Context, _ pgx.Tx, department Department) error {
+func (s *storeStub) CreateDepartment(_ context.Context, _ pgx.Tx, department Department, _ DataScope) error {
 	s.department = department
 	return nil
 }
-func (*storeStub) MoveDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, DepartmentID, time.Time) error {
+func (*storeStub) MoveDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, DepartmentID, DataScope, time.Time) error {
 	return nil
 }
-func (*storeStub) DeleteDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID) error {
+func (*storeStub) DeleteDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, DataScope) error {
 	return nil
 }
 func (s *storeStub) CreatePosition(_ context.Context, _ pgx.Tx, position Position) error {
 	s.position = position
 	return nil
 }
-func (*storeStub) AssignUser(context.Context, pgx.Tx, identity.TenantID, identity.UserID, DepartmentID, *PositionID, time.Time) error {
+func (*storeStub) AssignUser(context.Context, pgx.Tx, identity.TenantID, identity.UserID, DepartmentID, *PositionID, DataScope, time.Time) error {
 	return nil
 }
 
@@ -64,7 +64,7 @@ func TestServiceNormalizesOrganizationNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	write := WriteContext{Actor: identity.Actor{TenantID: "tenant", UserID: "user", SessionID: "session"}, CorrelationID: "request-1"}
+	write := WriteContext{Actor: identity.Actor{TenantID: "tenant", UserID: "user", SessionID: "session"}, CorrelationID: "request-1", Scope: DataScope{ActorID: "user", All: true}}
 	if _, err := service.CreateDepartment(context.Background(), write, nil, " 研发中心 ", 10); err != nil {
 		t.Fatal(err)
 	}

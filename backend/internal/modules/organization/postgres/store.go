@@ -21,8 +21,34 @@ type Store struct{ pool *pgxpool.Pool }
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 // ListDepartments returns only rows explicitly scoped to the supplied tenant.
-func (s *Store) ListDepartments(ctx context.Context, tenantID identity.TenantID) ([]organization.DepartmentView, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, parent_id, name, sort_order FROM modura.departments WHERE tenant_id = $1 ORDER BY sort_order, normalized_name, id`, tenantID)
+func (s *Store) ListDepartments(ctx context.Context, tenantID identity.TenantID, scope organization.DataScope) ([]organization.DepartmentView, error) {
+	customIDs := make([]string, 0, len(scope.CustomDepartmentIDs))
+	for _, id := range scope.CustomDepartmentIDs {
+		customIDs = append(customIDs, string(id))
+	}
+	const query = `
+WITH RECURSIVE actor_department AS (
+    SELECT primary_department_id AS id
+    FROM modura.user_organization
+    WHERE tenant_id = $1 AND user_id = $3
+), descendants AS (
+    SELECT id FROM actor_department WHERE $5
+    UNION ALL
+    SELECT d.id
+    FROM modura.departments d
+    JOIN descendants parent ON d.parent_id = parent.id
+    WHERE d.tenant_id = $1
+)
+SELECT d.id, d.parent_id, d.name, d.sort_order
+FROM modura.departments d
+WHERE d.tenant_id = $1 AND (
+    $2
+    OR (($4 OR $6) AND d.id IN (SELECT id FROM actor_department))
+    OR ($5 AND d.id IN (SELECT id FROM descendants))
+    OR d.id = ANY($7::uuid[])
+)
+ORDER BY d.sort_order, d.normalized_name, d.id`
+	rows, err := s.pool.Query(ctx, query, tenantID, scope.All, scope.ActorID, scope.Department, scope.DepartmentAndDescendants, scope.Self, customIDs)
 	if err != nil {
 		return nil, fmt.Errorf("query departments: %w", err)
 	}
@@ -64,7 +90,10 @@ func (s *Store) ListPositions(ctx context.Context, tenantID identity.TenantID) (
 
 // CreateDepartment inserts a department and relies on composite foreign keys
 // for same-tenant parent ownership.
-func (s *Store) CreateDepartment(ctx context.Context, tx pgx.Tx, department organization.Department) error {
+func (s *Store) CreateDepartment(ctx context.Context, tx pgx.Tx, department organization.Department, scope organization.DataScope) error {
+	if department.ParentID != nil && !visibleDepartment(ctx, tx, department.TenantID, *department.ParentID, scope) {
+		return organization.ErrNotFound
+	}
 	_, err := tx.Exec(ctx, `
 INSERT INTO modura.departments
     (id, tenant_id, parent_id, name, normalized_name, sort_order, created_at, updated_at)
@@ -76,7 +105,10 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`, department.ID, department.TenantID, de
 }
 
 // MoveDepartment atomically rejects root moves, cross-tenant parents, and cycles.
-func (s *Store) MoveDepartment(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, departmentID, newParentID organization.DepartmentID, now time.Time) error {
+func (s *Store) MoveDepartment(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, departmentID, newParentID organization.DepartmentID, scope organization.DataScope, now time.Time) error {
+	if !visibleDepartment(ctx, tx, tenantID, departmentID, scope) || !visibleDepartment(ctx, tx, tenantID, newParentID, scope) {
+		return organization.ErrNotFound
+	}
 	var isRoot bool
 	if err := tx.QueryRow(ctx, `SELECT parent_id IS NULL FROM modura.departments WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, departmentID).Scan(&isRoot); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -117,7 +149,10 @@ SELECT EXISTS (SELECT 1 FROM descendants WHERE id = $3)`
 }
 
 // DeleteDepartment deletes an unused non-root department.
-func (s *Store) DeleteDepartment(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, departmentID organization.DepartmentID) error {
+func (s *Store) DeleteDepartment(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, departmentID organization.DepartmentID, scope organization.DataScope) error {
+	if !visibleDepartment(ctx, tx, tenantID, departmentID, scope) {
+		return organization.ErrNotFound
+	}
 	command, err := tx.Exec(ctx, `DELETE FROM modura.departments WHERE tenant_id = $1 AND id = $2 AND parent_id IS NOT NULL`, tenantID, departmentID)
 	if err != nil {
 		var postgresError *pgconn.PgError
@@ -154,7 +189,10 @@ VALUES ($1, $2, $3, $4, 'active', $5, $5)`, position.ID, position.TenantID, posi
 }
 
 // AssignUser upserts the single primary department and optional position.
-func (s *Store) AssignUser(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, userID identity.UserID, departmentID organization.DepartmentID, positionID *organization.PositionID, now time.Time) error {
+func (s *Store) AssignUser(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, userID identity.UserID, departmentID organization.DepartmentID, positionID *organization.PositionID, scope organization.DataScope, now time.Time) error {
+	if !visibleUser(ctx, tx, tenantID, userID, scope) || !visibleDepartment(ctx, tx, tenantID, departmentID, scope) {
+		return organization.ErrNotFound
+	}
 	_, err := tx.Exec(ctx, `
 INSERT INTO modura.user_organization
     (tenant_id, user_id, primary_department_id, position_id, created_at, updated_at)
@@ -167,6 +205,35 @@ SET primary_department_id = EXCLUDED.primary_department_id,
 		return fmt.Errorf("assign user organization: %w", err)
 	}
 	return nil
+}
+
+func visibleDepartment(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, departmentID organization.DepartmentID, scope organization.DataScope) bool {
+	const query = `WITH RECURSIVE actor_department AS (SELECT primary_department_id AS id FROM modura.user_organization WHERE tenant_id = $1 AND user_id = $3), descendants AS (SELECT id FROM actor_department WHERE $6 UNION ALL SELECT d.id FROM modura.departments d JOIN descendants parent ON d.parent_id = parent.id WHERE d.tenant_id = $1) SELECT EXISTS (SELECT 1 FROM modura.departments d WHERE d.tenant_id = $1 AND d.id = $2 AND ($4 OR (($5 OR $7) AND d.id IN (SELECT id FROM actor_department)) OR ($6 AND d.id IN (SELECT id FROM descendants)) OR d.id = ANY($8::uuid[])))`
+	custom := make([]string, 0, len(scope.CustomDepartmentIDs))
+	for _, id := range scope.CustomDepartmentIDs {
+		custom = append(custom, string(id))
+	}
+	var visible bool
+	if err := tx.QueryRow(ctx, query, tenantID, departmentID, scope.ActorID, scope.All, scope.Department, scope.DepartmentAndDescendants, scope.Self, custom).Scan(&visible); err != nil {
+		return false
+	}
+	return visible
+}
+
+func visibleUser(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, userID identity.UserID, scope organization.DataScope) bool {
+	if scope.All || (scope.Self && userID == scope.ActorID) {
+		return true
+	}
+	const query = `WITH RECURSIVE actor_department AS (SELECT primary_department_id AS id FROM modura.user_organization WHERE tenant_id = $1 AND user_id = $3), descendants AS (SELECT id FROM actor_department WHERE $6 UNION ALL SELECT d.id FROM modura.departments d JOIN descendants parent ON d.parent_id = parent.id WHERE d.tenant_id = $1) SELECT EXISTS (SELECT 1 FROM modura.user_organization target WHERE target.tenant_id = $1 AND target.user_id = $2 AND ((($4) AND target.primary_department_id IN (SELECT id FROM actor_department)) OR ($6 AND target.primary_department_id IN (SELECT id FROM descendants)) OR target.primary_department_id = ANY($7::uuid[])))`
+	custom := make([]string, 0, len(scope.CustomDepartmentIDs))
+	for _, id := range scope.CustomDepartmentIDs {
+		custom = append(custom, string(id))
+	}
+	var visible bool
+	if err := tx.QueryRow(ctx, query, tenantID, userID, scope.ActorID, scope.Department, scope.Self, scope.DepartmentAndDescendants, custom).Scan(&visible); err != nil {
+		return false
+	}
+	return visible
 }
 
 // ProvisionInitialOrganization creates the root and first assignment in a workflow transaction.

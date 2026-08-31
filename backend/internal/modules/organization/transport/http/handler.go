@@ -23,11 +23,12 @@ type ActorResolver interface {
 // Authorizer checks canonical organization permissions.
 type Authorizer interface {
 	Authorize(context.Context, identity.Actor, authorization.Permission) error
+	ResolveDataScope(context.Context, identity.Actor, authorization.Permission) (authorization.ResolvedDataScope, error)
 }
 
 // Service is the organization application API consumed by this adapter.
 type Service interface {
-	ListDepartments(context.Context, identity.TenantID) ([]organization.DepartmentView, error)
+	ListDepartments(context.Context, identity.TenantID, organization.DataScope) ([]organization.DepartmentView, error)
 	ListPositions(context.Context, identity.TenantID) ([]organization.PositionView, error)
 	CreateDepartment(context.Context, organization.WriteContext, *organization.DepartmentID, string, int) (organization.DepartmentID, error)
 	MoveDepartment(context.Context, organization.WriteContext, organization.DepartmentID, organization.DepartmentID) error
@@ -55,7 +56,21 @@ func (h *OrganizationHandler) ListDepartments(c *gin.Context) {
 	if !ok {
 		return
 	}
-	departments, err := h.service.ListDepartments(c.Request.Context(), actor.TenantID)
+	resolved, err := h.authorizer.ResolveDataScope(c.Request.Context(), actor, authorization.Permission{Resource: authorization.ResourceDepartments, Action: authorization.ActionRead})
+	if errors.Is(err, authorization.ErrDenied) {
+		h.security.Problem(c, http.StatusForbidden, "forbidden")
+		return
+	}
+	if err != nil {
+		h.security.Problem(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	custom := make([]organization.DepartmentID, 0, len(resolved.CustomDepartmentIDs))
+	for _, id := range resolved.CustomDepartmentIDs {
+		custom = append(custom, organization.DepartmentID(id))
+	}
+	scope := organization.DataScope{ActorID: actor.UserID, All: resolved.All, Self: resolved.Self, Department: resolved.Department, DepartmentAndDescendants: resolved.DepartmentAndDescendants, CustomDepartmentIDs: custom}
+	departments, err := h.service.ListDepartments(c.Request.Context(), actor.TenantID, scope)
 	if err != nil {
 		h.security.Problem(c, http.StatusInternalServerError, "internal server error")
 		return
@@ -90,13 +105,17 @@ func (h *OrganizationHandler) CreateDepartment(c *gin.Context, params generated.
 	if !ok {
 		return
 	}
+	scope, ok := h.resolvedScope(c, actor, authorization.Permission{Resource: authorization.ResourceDepartments, Action: authorization.ActionCreate})
+	if !ok {
+		return
+	}
 	var request generated.CreateDepartmentRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
 	}
 	parentID := organization.DepartmentID(request.ParentId.String())
-	id, err := h.service.CreateDepartment(c.Request.Context(), writeContext(c, actor), &parentID, request.Name, request.SortOrder)
+	id, err := h.service.CreateDepartment(c.Request.Context(), writeContext(c, actor, scope), &parentID, request.Name, request.SortOrder)
 	if err != nil {
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
@@ -118,12 +137,16 @@ func (h *OrganizationHandler) MoveDepartment(c *gin.Context, departmentID genera
 	if !ok {
 		return
 	}
+	scope, ok := h.resolvedScope(c, actor, authorization.Permission{Resource: authorization.ResourceDepartments, Action: authorization.ActionUpdate})
+	if !ok {
+		return
+	}
 	var request generated.MoveDepartmentRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
 	}
-	err := h.service.MoveDepartment(c.Request.Context(), writeContext(c, actor), organization.DepartmentID(departmentID.String()), organization.DepartmentID(request.ParentId.String()))
+	err := h.service.MoveDepartment(c.Request.Context(), writeContext(c, actor, scope), organization.DepartmentID(departmentID.String()), organization.DepartmentID(request.ParentId.String()))
 	if errors.Is(err, organization.ErrNotFound) {
 		h.security.Problem(c, http.StatusNotFound, "not found")
 		return
@@ -144,7 +167,11 @@ func (h *OrganizationHandler) DeleteDepartment(c *gin.Context, departmentID gene
 	if !ok {
 		return
 	}
-	err := h.service.DeleteDepartment(c.Request.Context(), writeContext(c, actor), organization.DepartmentID(departmentID.String()))
+	scope, ok := h.resolvedScope(c, actor, authorization.Permission{Resource: authorization.ResourceDepartments, Action: authorization.ActionDelete})
+	if !ok {
+		return
+	}
+	err := h.service.DeleteDepartment(c.Request.Context(), writeContext(c, actor, scope), organization.DepartmentID(departmentID.String()))
 	if errors.Is(err, organization.ErrNotFound) {
 		h.security.Problem(c, http.StatusNotFound, "not found")
 		return
@@ -160,6 +187,11 @@ func (h *OrganizationHandler) DeleteDepartment(c *gin.Context, departmentID gene
 func (h *OrganizationHandler) ListPositions(c *gin.Context) {
 	actor, ok := h.authorizedActor(c, authorization.Permission{Resource: authorization.ResourcePositions, Action: authorization.ActionRead})
 	if !ok {
+		return
+	}
+	scope, ok := h.resolvedScope(c, actor, authorization.Permission{Resource: authorization.ResourcePositions, Action: authorization.ActionRead})
+	if !ok || !scope.All {
+		h.security.Problem(c, http.StatusForbidden, "forbidden")
 		return
 	}
 	positions, err := h.service.ListPositions(c.Request.Context(), actor.TenantID)
@@ -188,12 +220,17 @@ func (h *OrganizationHandler) CreatePosition(c *gin.Context, params generated.Cr
 	if !ok {
 		return
 	}
+	scope, ok := h.resolvedScope(c, actor, authorization.Permission{Resource: authorization.ResourcePositions, Action: authorization.ActionCreate})
+	if !ok || !scope.All {
+		h.security.Problem(c, http.StatusForbidden, "forbidden")
+		return
+	}
 	var request generated.CreatePositionRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
 	}
-	id, err := h.service.CreatePosition(c.Request.Context(), writeContext(c, actor), request.Name)
+	id, err := h.service.CreatePosition(c.Request.Context(), writeContext(c, actor, scope), request.Name)
 	if err != nil {
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
@@ -215,6 +252,10 @@ func (h *OrganizationHandler) AssignUserOrganization(c *gin.Context, userID gene
 	if !ok {
 		return
 	}
+	scope, ok := h.resolvedScope(c, actor, authorization.Permission{Resource: authorization.ResourceUserOrganization, Action: authorization.ActionUpdate})
+	if !ok {
+		return
+	}
 	var request generated.AssignUserOrganizationRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
@@ -226,11 +267,28 @@ func (h *OrganizationHandler) AssignUserOrganization(c *gin.Context, userID gene
 		value := organization.PositionID(request.PositionId.String())
 		positionID = &value
 	}
-	if err := h.service.AssignUser(c.Request.Context(), writeContext(c, actor), identity.UserID(userID.String()), departmentID, positionID); err != nil {
+	if err := h.service.AssignUser(c.Request.Context(), writeContext(c, actor, scope), identity.UserID(userID.String()), departmentID, positionID); err != nil {
 		h.security.Problem(c, http.StatusBadRequest, "invalid request")
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (h *OrganizationHandler) resolvedScope(c *gin.Context, actor identity.Actor, permission authorization.Permission) (organization.DataScope, bool) {
+	resolved, err := h.authorizer.ResolveDataScope(c.Request.Context(), actor, permission)
+	if err != nil {
+		if errors.Is(err, authorization.ErrDenied) {
+			h.security.Problem(c, http.StatusForbidden, "forbidden")
+		} else {
+			h.security.Problem(c, http.StatusInternalServerError, "internal server error")
+		}
+		return organization.DataScope{}, false
+	}
+	custom := make([]organization.DepartmentID, 0, len(resolved.CustomDepartmentIDs))
+	for _, id := range resolved.CustomDepartmentIDs {
+		custom = append(custom, organization.DepartmentID(id))
+	}
+	return organization.DataScope{ActorID: actor.UserID, All: resolved.All, Self: resolved.Self, Department: resolved.Department, DepartmentAndDescendants: resolved.DepartmentAndDescendants, CustomDepartmentIDs: custom}, true
 }
 
 func (h *OrganizationHandler) authorizedActor(c *gin.Context, permission authorization.Permission) (identity.Actor, bool) {
@@ -257,6 +315,6 @@ func (h *OrganizationHandler) csrf(c *gin.Context, header string) bool {
 	return ok
 }
 
-func writeContext(c *gin.Context, actor identity.Actor) organization.WriteContext {
-	return organization.WriteContext{Actor: actor, CorrelationID: c.GetHeader("X-Request-ID")}
+func writeContext(c *gin.Context, actor identity.Actor, scope organization.DataScope) organization.WriteContext {
+	return organization.WriteContext{Actor: actor, CorrelationID: c.GetHeader("X-Request-ID"), Scope: scope}
 }

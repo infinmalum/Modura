@@ -2,6 +2,7 @@
 package audit
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/modura-dev/modura/backend/internal/modules/identity"
@@ -18,4 +19,6 @@ type Event struct {
 	Reason        string
 	CorrelationID string
 	OccurredAt    time.Time
+	BeforeState   json.RawMessage
+	AfterState    json.RawMessage
 }

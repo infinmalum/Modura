@@ -13,13 +13,13 @@ import (
 
 // Store is the persistence boundary consumed by organization use cases.
 type Store interface {
-	ListDepartments(context.Context, identity.TenantID) ([]DepartmentView, error)
+	ListDepartments(context.Context, identity.TenantID, DataScope) ([]DepartmentView, error)
 	ListPositions(context.Context, identity.TenantID) ([]PositionView, error)
-	CreateDepartment(context.Context, pgx.Tx, Department) error
-	MoveDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, DepartmentID, time.Time) error
-	DeleteDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID) error
+	CreateDepartment(context.Context, pgx.Tx, Department, DataScope) error
+	MoveDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, DepartmentID, DataScope, time.Time) error
+	DeleteDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, DataScope) error
 	CreatePosition(context.Context, pgx.Tx, Position) error
-	AssignUser(context.Context, pgx.Tx, identity.TenantID, identity.UserID, DepartmentID, *PositionID, time.Time) error
+	AssignUser(context.Context, pgx.Tx, identity.TenantID, identity.UserID, DepartmentID, *PositionID, DataScope, time.Time) error
 	ProvisionInitialOrganization(context.Context, pgx.Tx, Department, identity.UserID) error
 }
 
@@ -37,6 +37,7 @@ type Auditor interface {
 type WriteContext struct {
 	Actor         identity.Actor
 	CorrelationID string
+	Scope         DataScope
 }
 
 // ListPositions returns the actor tenant's position catalog.
@@ -52,11 +53,11 @@ func (s *Service) ListPositions(ctx context.Context, tenantID identity.TenantID)
 }
 
 // ListDepartments returns the actor tenant's department projection.
-func (s *Service) ListDepartments(ctx context.Context, tenantID identity.TenantID) ([]DepartmentView, error) {
-	if tenantID == "" {
+func (s *Service) ListDepartments(ctx context.Context, tenantID identity.TenantID, scope DataScope) ([]DepartmentView, error) {
+	if tenantID == "" || !scope.valid() {
 		return nil, fmt.Errorf("invalid tenant scope")
 	}
-	departments, err := s.store.ListDepartments(ctx, tenantID)
+	departments, err := s.store.ListDepartments(ctx, tenantID, scope)
 	if err != nil {
 		return nil, fmt.Errorf("list departments: %w", err)
 	}
@@ -92,7 +93,7 @@ func (s *Service) CreateDepartment(ctx context.Context, write WriteContext, pare
 		return "", fmt.Errorf("generate department ID: %w", err)
 	}
 	department := Department{ID: DepartmentID(id), TenantID: write.Actor.TenantID, ParentID: parentID, Name: strings.TrimSpace(name), NormalizedName: normalized, SortOrder: sortOrder, CreatedAt: now}
-	if err := s.write(ctx, write, now, "organization.department.created", "department", string(department.ID), func(tx pgx.Tx) error { return s.store.CreateDepartment(ctx, tx, department) }); err != nil {
+	if err := s.write(ctx, write, now, "organization.department.created", "department", string(department.ID), func(tx pgx.Tx) error { return s.store.CreateDepartment(ctx, tx, department, write.Scope) }); err != nil {
 		return "", fmt.Errorf("create department: %w", err)
 	}
 	return department.ID, nil
@@ -105,7 +106,7 @@ func (s *Service) MoveDepartment(ctx context.Context, write WriteContext, depart
 	}
 	now := s.now().UTC()
 	return s.write(ctx, write, now, "organization.department.moved", "department", string(departmentID), func(tx pgx.Tx) error {
-		return s.store.MoveDepartment(ctx, tx, write.Actor.TenantID, departmentID, newParentID, now)
+		return s.store.MoveDepartment(ctx, tx, write.Actor.TenantID, departmentID, newParentID, write.Scope, now)
 	})
 }
 
@@ -115,7 +116,9 @@ func (s *Service) DeleteDepartment(ctx context.Context, write WriteContext, depa
 		return fmt.Errorf("invalid department delete")
 	}
 	now := s.now().UTC()
-	return s.write(ctx, write, now, "organization.department.deleted", "department", string(departmentID), func(tx pgx.Tx) error { return s.store.DeleteDepartment(ctx, tx, write.Actor.TenantID, departmentID) })
+	return s.write(ctx, write, now, "organization.department.deleted", "department", string(departmentID), func(tx pgx.Tx) error {
+		return s.store.DeleteDepartment(ctx, tx, write.Actor.TenantID, departmentID, write.Scope)
+	})
 }
 
 // CreatePosition creates an active tenant position.
@@ -143,7 +146,7 @@ func (s *Service) AssignUser(ctx context.Context, write WriteContext, userID ide
 	}
 	now := s.now().UTC()
 	return s.write(ctx, write, now, "organization.user-assigned", "user", string(userID), func(tx pgx.Tx) error {
-		return s.store.AssignUser(ctx, tx, write.Actor.TenantID, userID, departmentID, positionID, now)
+		return s.store.AssignUser(ctx, tx, write.Actor.TenantID, userID, departmentID, positionID, write.Scope, now)
 	})
 }
 
@@ -157,7 +160,7 @@ func (s *Service) write(ctx context.Context, write WriteContext, now time.Time, 
 }
 
 func validWrite(write WriteContext) bool {
-	return write.Actor.TenantID != "" && write.Actor.UserID != "" && write.Actor.SessionID != "" && strings.TrimSpace(write.CorrelationID) != ""
+	return write.Actor.TenantID != "" && write.Actor.UserID != "" && write.Actor.SessionID != "" && strings.TrimSpace(write.CorrelationID) != "" && write.Scope.valid() && write.Scope.ActorID == write.Actor.UserID
 }
 
 // ProvisionInitialOrganization creates the sole root department and assigns

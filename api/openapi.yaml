@@ -349,6 +349,7 @@ paths:
       tags: [organization]
       security:
         - bearerAuth: []
+      x-modura-permission: { resource: organization.departments, action: read }
       responses:
         "200":
           description: Tenant department list
@@ -368,6 +369,7 @@ paths:
       tags: [organization]
       security:
         - bearerAuth: []
+      x-modura-permission: { resource: organization.departments, action: create }
       parameters:
         - $ref: "#/components/parameters/CsrfToken"
       requestBody:
@@ -402,6 +404,7 @@ paths:
       tags: [organization]
       security:
         - bearerAuth: []
+      x-modura-permission: { resource: organization.departments, action: update }
       parameters:
         - $ref: "#/components/parameters/CsrfToken"
       requestBody:
@@ -431,6 +434,7 @@ paths:
       tags: [organization]
       security:
         - bearerAuth: []
+      x-modura-permission: { resource: organization.departments, action: delete }
       parameters:
         - $ref: "#/components/parameters/CsrfToken"
       responses:
@@ -455,6 +459,7 @@ paths:
       tags: [organization]
       security:
         - bearerAuth: []
+      x-modura-permission: { resource: organization.positions, action: read }
       responses:
         "200":
           description: Tenant position list
@@ -474,6 +479,7 @@ paths:
       tags: [organization]
       security:
         - bearerAuth: []
+      x-modura-permission: { resource: organization.positions, action: create }
       parameters:
         - $ref: "#/components/parameters/CsrfToken"
       requestBody:
@@ -506,6 +512,7 @@ paths:
       tags: [organization]
       security:
         - bearerAuth: []
+      x-modura-permission: { resource: organization.user-organization, action: update }
       parameters:
         - $ref: "#/components/parameters/UserId"
         - $ref: "#/components/parameters/CsrfToken"
@@ -528,6 +535,127 @@ paths:
           $ref: "#/components/responses/AuthenticationFailed"
         "403":
           $ref: "#/components/responses/AuthorizationFailed"
+  /authorization/roles:
+    get:
+      operationId: listRoles
+      summary: List roles in the authenticated tenant
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: authorization.roles, action: read }
+      responses:
+        "200":
+          description: Tenant role list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Role" } }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+    post:
+      operationId: createRole
+      summary: Create an empty non-reserved tenant role
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: authorization.roles, action: create }
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRoleRequest" }
+      responses:
+        "201":
+          description: Role created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Role" }
+        "400": { description: Invalid or duplicate role }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+  /authorization/roles/{roleId}/policies:
+    get:
+      operationId: getRolePolicySet
+      summary: Read a role's versioned policy desired state
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: authorization.policies, action: read }
+      parameters:
+        - { $ref: "#/components/parameters/RoleId" }
+      responses:
+        "200":
+          description: Current role policy desired state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RolePolicySet" }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+        "404": { description: Role not found in the tenant }
+    put:
+      operationId: replaceRolePolicies
+      summary: Replace a non-reserved role's policy desired state
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: authorization.policies, action: update }
+      parameters:
+        - { $ref: "#/components/parameters/RoleId" }
+        - { $ref: "#/components/parameters/CsrfToken" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReplaceRolePoliciesRequest" }
+      responses:
+        "200":
+          description: Policy desired state replaced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VersionResponse" }
+        "400": { description: Invalid policy desired state }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+        "404": { description: Role not found in the tenant }
+        "409": { description: Expected role version is stale }
+  /authorization/users/{userId}/roles:
+    get:
+      operationId: getUserRoleGrants
+      summary: Read a user's versioned role desired state
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: authorization.user-roles, action: read }
+      parameters: [{ $ref: "#/components/parameters/UserId" }]
+      responses:
+        "200":
+          description: Current user role grants
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserRoleGrantSet" }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+        "404": { description: User not found in the tenant }
+    put:
+      operationId: replaceUserRoleGrants
+      summary: Replace a user's non-reserved role grants with optimistic locking
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: authorization.user-roles, action: update }
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/CsrfToken" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReplaceUserRoleGrantsRequest" }
+      responses:
+        "200":
+          description: User role grants replaced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserRoleGrantSet" }
+        "400": { description: Invalid desired state }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+        "404": { description: User not found in the tenant }
+        "409": { description: Expected grant version is stale }
 components:
   securitySchemes:
     bearerAuth:
@@ -563,6 +691,13 @@ components:
         format: uuid
     UserId:
       name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RoleId:
+      name: roleId
       in: path
       required: true
       schema:
@@ -809,6 +944,92 @@ components:
           type: string
           format: uuid
           nullable: true
+    Role:
+      type: object
+      additionalProperties: false
+      required: [id, code, name, reserved, version]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        reserved: { type: boolean }
+        version: { type: integer, format: int64, minimum: 1 }
+    CreateRoleRequest:
+      type: object
+      additionalProperties: false
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+        name: { type: string, minLength: 1, maxLength: 128 }
+    DataScopeKind:
+      type: string
+      enum: [all, self, department, department-and-descendants, custom]
+    RolePolicy:
+      type: object
+      additionalProperties: false
+      required: [resource, action, dataScope]
+      properties:
+        resource:
+          type: string
+          enum: [organization.departments, organization.positions, organization.user-organization, authorization.roles, authorization.policies, authorization.user-roles]
+        action:
+          type: string
+          enum: [read, create, update, delete]
+        dataScope: { $ref: "#/components/schemas/DataScopeKind" }
+        departmentIds:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    ReplaceRolePoliciesRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, policies]
+      properties:
+        expectedVersion: { type: integer, format: int64, minimum: 1 }
+        policies:
+          type: array
+          maxItems: 24
+          items: { $ref: "#/components/schemas/RolePolicy" }
+    RolePolicySet:
+      type: object
+      additionalProperties: false
+      required: [version, reserved, policies]
+      properties:
+        version: { type: integer, format: int64, minimum: 1 }
+        reserved: { type: boolean }
+        policies:
+          type: array
+          items: { $ref: "#/components/schemas/RolePolicy" }
+    VersionResponse:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, format: int64, minimum: 1 }
+    UserRoleGrantSet:
+      type: object
+      additionalProperties: false
+      required: [version, roleIds]
+      properties:
+        version: { type: integer, format: int64, minimum: 1 }
+        roleIds:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    ReplaceUserRoleGrantsRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, roleIds]
+      properties:
+        expectedVersion: { type: integer, format: int64, minimum: 1 }
+        roleIds:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
     AccessTokenResponse:
       type: object
       additionalProperties: false
