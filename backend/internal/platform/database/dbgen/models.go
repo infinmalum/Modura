@@ -56,6 +56,16 @@ type ModuraAuthSession struct {
 	RevocationReason pgtype.Text        `json:"revocation_reason"`
 }
 
+type ModuraConfigurationDefinition struct {
+	ID                pgtype.UUID        `json:"id"`
+	Key               string             `json:"key"`
+	Name              string             `json:"name"`
+	ValueType         string             `json:"value_type"`
+	TenantOverridable bool               `json:"tenant_overridable"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ModuraDepartment struct {
 	ID             pgtype.UUID        `json:"id"`
 	TenantID       pgtype.UUID        `json:"tenant_id"`
@@ -65,6 +75,34 @@ type ModuraDepartment struct {
 	SortOrder      int32              `json:"sort_order"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ModuraGlobalConfigurationValue struct {
+	Key       string             `json:"key"`
+	Value     []byte             `json:"value"`
+	Version   int64              `json:"version"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ModuraGlobalDictionaryItem struct {
+	ID               pgtype.UUID        `json:"id"`
+	DictionaryTypeID pgtype.UUID        `json:"dictionary_type_id"`
+	Code             string             `json:"code"`
+	Label            string             `json:"label"`
+	SortOrder        int32              `json:"sort_order"`
+	Enabled          bool               `json:"enabled"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ModuraGlobalDictionaryType struct {
+	ID        pgtype.UUID        `json:"id"`
+	Code      string             `json:"code"`
+	Name      string             `json:"name"`
+	Version   int64              `json:"version"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type ModuraPlatformAdministrator struct {
@@ -144,6 +182,37 @@ type ModuraTenant struct {
 	Status      string             `json:"status"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ModuraTenantConfigurationValue struct {
+	TenantID  pgtype.UUID        `json:"tenant_id"`
+	Key       string             `json:"key"`
+	Value     []byte             `json:"value"`
+	Version   int64              `json:"version"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ModuraTenantDictionaryItem struct {
+	ID               pgtype.UUID        `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	DictionaryTypeID pgtype.UUID        `json:"dictionary_type_id"`
+	Code             string             `json:"code"`
+	Label            string             `json:"label"`
+	SortOrder        int32              `json:"sort_order"`
+	Enabled          bool               `json:"enabled"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ModuraTenantDictionaryType struct {
+	ID        pgtype.UUID        `json:"id"`
+	TenantID  pgtype.UUID        `json:"tenant_id"`
+	Code      string             `json:"code"`
+	Name      string             `json:"name"`
+	Version   int64              `json:"version"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type ModuraTenantProvisioningRequest struct {

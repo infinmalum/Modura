@@ -28,6 +28,66 @@ func (e AccessTokenResponseTokenType) Valid() bool {
 	}
 }
 
+// Defines values for AuditEventActorType.
+const (
+	PlatformAdministrator AuditEventActorType = "platform_administrator"
+	TenantUser            AuditEventActorType = "tenant_user"
+)
+
+// Valid indicates whether the value is a known member of the AuditEventActorType enum.
+func (e AuditEventActorType) Valid() bool {
+	switch e {
+	case PlatformAdministrator:
+		return true
+	case TenantUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditEventResult.
+const (
+	Failed    AuditEventResult = "failed"
+	Succeeded AuditEventResult = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the AuditEventResult enum.
+func (e AuditEventResult) Valid() bool {
+	switch e {
+	case Failed:
+		return true
+	case Succeeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ConfigurationValueType.
+const (
+	Boolean ConfigurationValueType = "boolean"
+	Integer ConfigurationValueType = "integer"
+	Json    ConfigurationValueType = "json"
+	String  ConfigurationValueType = "string"
+)
+
+// Valid indicates whether the value is a known member of the ConfigurationValueType enum.
+func (e ConfigurationValueType) Valid() bool {
+	switch e {
+	case Boolean:
+		return true
+	case Integer:
+		return true
+	case Json:
+		return true
+	case String:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DataScopeKind.
 const (
 	DataScopeKindAll                      DataScopeKind = "all"
@@ -135,17 +195,22 @@ func (e RolePolicyAction) Valid() bool {
 
 // Defines values for RolePolicyResource.
 const (
+	AuditEvents                  RolePolicyResource = "audit.events"
 	AuthorizationPolicies        RolePolicyResource = "authorization.policies"
 	AuthorizationRoles           RolePolicyResource = "authorization.roles"
 	AuthorizationUserRoles       RolePolicyResource = "authorization.user-roles"
 	OrganizationDepartments      RolePolicyResource = "organization.departments"
 	OrganizationPositions        RolePolicyResource = "organization.positions"
 	OrganizationUserOrganization RolePolicyResource = "organization.user-organization"
+	SettingsConfigurations       RolePolicyResource = "settings.configurations"
+	SettingsDictionaries         RolePolicyResource = "settings.dictionaries"
 )
 
 // Valid indicates whether the value is a known member of the RolePolicyResource enum.
 func (e RolePolicyResource) Valid() bool {
 	switch e {
+	case AuditEvents:
+		return true
 	case AuthorizationPolicies:
 		return true
 	case AuthorizationRoles:
@@ -157,6 +222,28 @@ func (e RolePolicyResource) Valid() bool {
 	case OrganizationPositions:
 		return true
 	case OrganizationUserOrganization:
+		return true
+	case SettingsConfigurations:
+		return true
+	case SettingsDictionaries:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SettingSource.
+const (
+	Global SettingSource = "global"
+	Tenant SettingSource = "tenant"
+)
+
+// Valid indicates whether the value is a known member of the SettingSource enum.
+func (e SettingSource) Valid() bool {
+	switch e {
+	case Global:
+		return true
+	case Tenant:
 		return true
 	default:
 		return false
@@ -180,11 +267,48 @@ type AssignUserOrganizationRequest struct {
 	PositionId   *openapi_types.UUID `json:"positionId,omitempty"`
 }
 
+// AuditEvent defines model for AuditEvent.
+type AuditEvent struct {
+	Action        string              `json:"action"`
+	ActorId       openapi_types.UUID  `json:"actorId"`
+	ActorType     AuditEventActorType `json:"actorType"`
+	AfterState    interface{}         `json:"afterState,omitempty"`
+	BeforeState   interface{}         `json:"beforeState,omitempty"`
+	CorrelationId string              `json:"correlationId"`
+	Id            openapi_types.UUID  `json:"id"`
+	OccurredAt    time.Time           `json:"occurredAt"`
+	Reason        string              `json:"reason"`
+	Resource      string              `json:"resource"`
+	ResourceId    openapi_types.UUID  `json:"resourceId"`
+	Result        AuditEventResult    `json:"result"`
+	TenantId      openapi_types.UUID  `json:"tenantId"`
+}
+
+// AuditEventActorType defines model for AuditEvent.ActorType.
+type AuditEventActorType string
+
+// AuditEventResult defines model for AuditEvent.Result.
+type AuditEventResult string
+
 // ChangePasswordRequest defines model for ChangePasswordRequest.
 type ChangePasswordRequest struct {
 	CurrentPassword *string `json:"currentPassword,omitempty"`
 	NewPassword     *string `json:"newPassword,omitempty"`
 }
+
+// Configuration defines model for Configuration.
+type Configuration struct {
+	Key               string                 `json:"key"`
+	Name              string                 `json:"name"`
+	Source            SettingSource          `json:"source"`
+	TenantOverridable bool                   `json:"tenantOverridable"`
+	Value             interface{}            `json:"value"`
+	ValueType         ConfigurationValueType `json:"valueType"`
+	Version           int64                  `json:"version"`
+}
+
+// ConfigurationValueType defines model for ConfigurationValueType.
+type ConfigurationValueType string
 
 // CreateDepartmentRequest defines model for CreateDepartmentRequest.
 type CreateDepartmentRequest struct {
@@ -213,6 +337,29 @@ type Department struct {
 	Name      string              `json:"name"`
 	ParentId  *openapi_types.UUID `json:"parentId,omitempty"`
 	SortOrder int                 `json:"sortOrder"`
+}
+
+// Dictionary defines model for Dictionary.
+type Dictionary struct {
+	Code    string           `json:"code"`
+	Items   []DictionaryItem `json:"items"`
+	Name    string           `json:"name"`
+	Source  SettingSource    `json:"source"`
+	Version int64            `json:"version"`
+}
+
+// DictionaryItem defines model for DictionaryItem.
+type DictionaryItem struct {
+	Code      string `json:"code"`
+	Enabled   bool   `json:"enabled"`
+	Label     string `json:"label"`
+	SortOrder int    `json:"sortOrder"`
+}
+
+// EffectivePermission defines model for EffectivePermission.
+type EffectivePermission struct {
+	Action   string `json:"action"`
+	Resource string `json:"resource"`
 }
 
 // HealthStatus defines model for HealthStatus.
@@ -300,6 +447,37 @@ type ProvisionTenantResponse struct {
 	TenantId openapi_types.UUID `json:"tenantId"`
 }
 
+// PutConfigurationRequest defines model for PutConfigurationRequest.
+type PutConfigurationRequest struct {
+	ExpectedVersion int64       `json:"expectedVersion"`
+	Value           interface{} `json:"value"`
+}
+
+// PutPlatformConfigurationRequest defines model for PutPlatformConfigurationRequest.
+type PutPlatformConfigurationRequest struct {
+	ExpectedVersion   int64                  `json:"expectedVersion"`
+	Name              string                 `json:"name"`
+	Reason            string                 `json:"reason"`
+	TenantOverridable bool                   `json:"tenantOverridable"`
+	Value             interface{}            `json:"value"`
+	ValueType         ConfigurationValueType `json:"valueType"`
+}
+
+// ReplaceDictionaryRequest defines model for ReplaceDictionaryRequest.
+type ReplaceDictionaryRequest struct {
+	ExpectedVersion int64            `json:"expectedVersion"`
+	Items           []DictionaryItem `json:"items"`
+	Name            string           `json:"name"`
+}
+
+// ReplacePlatformDictionaryRequest defines model for ReplacePlatformDictionaryRequest.
+type ReplacePlatformDictionaryRequest struct {
+	ExpectedVersion int64            `json:"expectedVersion"`
+	Items           []DictionaryItem `json:"items"`
+	Name            string           `json:"name"`
+	Reason          string           `json:"reason"`
+}
+
 // ReplaceRolePoliciesRequest defines model for ReplaceRolePoliciesRequest.
 type ReplaceRolePoliciesRequest struct {
 	ExpectedVersion int64        `json:"expectedVersion"`
@@ -342,6 +520,9 @@ type RolePolicySet struct {
 	Version  int64        `json:"version"`
 }
 
+// SettingSource defines model for SettingSource.
+type SettingSource string
+
 // TenantLifecycleRequest defines model for TenantLifecycleRequest.
 type TenantLifecycleRequest struct {
 	Reason string `json:"reason"`
@@ -358,11 +539,20 @@ type VersionResponse struct {
 	Version int64 `json:"version"`
 }
 
+// ConfigurationKey defines model for ConfigurationKey.
+type ConfigurationKey = string
+
 // CsrfToken defines model for CsrfToken.
 type CsrfToken = string
 
 // DepartmentId defines model for DepartmentId.
 type DepartmentId = openapi_types.UUID
+
+// DictionaryCode defines model for DictionaryCode.
+type DictionaryCode = string
+
+// ExpectedVersion defines model for ExpectedVersion.
+type ExpectedVersion = int64
 
 // IdempotencyKey defines model for IdempotencyKey.
 type IdempotencyKey = openapi_types.UUID
@@ -384,6 +574,14 @@ type AuthorizationFailed = Problem
 
 // CsrfFailed defines model for CsrfFailed.
 type CsrfFailed = Problem
+
+// ListAuditEventsParams defines parameters for ListAuditEvents.
+type ListAuditEventsParams struct {
+	Action   *string `form:"action,omitempty" json:"action,omitempty"`
+	Resource *string `form:"resource,omitempty" json:"resource,omitempty"`
+	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset   *int    `form:"offset,omitempty" json:"offset,omitempty"`
+}
 
 // LogoutParams defines parameters for Logout.
 type LogoutParams struct {
@@ -450,6 +648,16 @@ type PlatformRefreshParams struct {
 	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
 }
 
+// PutPlatformConfigurationParams defines parameters for PutPlatformConfiguration.
+type PutPlatformConfigurationParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// ReplacePlatformDictionaryParams defines parameters for ReplacePlatformDictionary.
+type ReplacePlatformDictionaryParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
 // ProvisionPlatformTenantParams defines parameters for ProvisionPlatformTenant.
 type ProvisionPlatformTenantParams struct {
 	XCSRFToken     CsrfToken      `json:"X-CSRF-Token"`
@@ -463,6 +671,22 @@ type ReactivatePlatformTenantParams struct {
 
 // SuspendPlatformTenantParams defines parameters for SuspendPlatformTenant.
 type SuspendPlatformTenantParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// PutConfigurationParams defines parameters for PutConfiguration.
+type PutConfigurationParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// DeleteDictionaryParams defines parameters for DeleteDictionary.
+type DeleteDictionaryParams struct {
+	ExpectedVersion ExpectedVersion `form:"expectedVersion" json:"expectedVersion"`
+	XCSRFToken      CsrfToken       `json:"X-CSRF-Token"`
+}
+
+// ReplaceDictionaryParams defines parameters for ReplaceDictionary.
+type ReplaceDictionaryParams struct {
 	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
 }
 
@@ -502,6 +726,12 @@ type AssignUserOrganizationJSONRequestBody = AssignUserOrganizationRequest
 // PlatformLoginJSONRequestBody defines body for PlatformLogin for application/json ContentType.
 type PlatformLoginJSONRequestBody = PlatformLoginRequest
 
+// PutPlatformConfigurationJSONRequestBody defines body for PutPlatformConfiguration for application/json ContentType.
+type PutPlatformConfigurationJSONRequestBody = PutPlatformConfigurationRequest
+
+// ReplacePlatformDictionaryJSONRequestBody defines body for ReplacePlatformDictionary for application/json ContentType.
+type ReplacePlatformDictionaryJSONRequestBody = ReplacePlatformDictionaryRequest
+
 // ProvisionPlatformTenantJSONRequestBody defines body for ProvisionPlatformTenant for application/json ContentType.
 type ProvisionPlatformTenantJSONRequestBody = ProvisionTenantRequest
 
@@ -511,8 +741,17 @@ type ReactivatePlatformTenantJSONRequestBody = TenantLifecycleRequest
 // SuspendPlatformTenantJSONRequestBody defines body for SuspendPlatformTenant for application/json ContentType.
 type SuspendPlatformTenantJSONRequestBody = TenantLifecycleRequest
 
+// PutConfigurationJSONRequestBody defines body for PutConfiguration for application/json ContentType.
+type PutConfigurationJSONRequestBody = PutConfigurationRequest
+
+// ReplaceDictionaryJSONRequestBody defines body for ReplaceDictionary for application/json ContentType.
+type ReplaceDictionaryJSONRequestBody = ReplaceDictionaryRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListAuditEvents List redacted audit events in the authenticated tenant
+	// (GET /audit/events)
+	ListAuditEvents(c *gin.Context, params ListAuditEventsParams)
 	// AcceptInvitation Consume an invitation and establish the first password
 	// (POST /auth/invitations/accept)
 	AcceptInvitation(c *gin.Context)
@@ -534,6 +773,9 @@ type ServerInterface interface {
 	// Refresh Rotate the refresh secret and issue an access token
 	// (POST /auth/refresh)
 	Refresh(c *gin.Context, params RefreshParams)
+	// ListEffectivePermissions List canonical permissions granted to the authenticated tenant actor
+	// (GET /authorization/permissions)
+	ListEffectivePermissions(c *gin.Context)
 	// ListRoles List roles in the authenticated tenant
 	// (GET /authorization/roles)
 	ListRoles(c *gin.Context)
@@ -582,6 +824,18 @@ type ServerInterface interface {
 	// PlatformRefresh Rotate a platform-administrator refresh secret
 	// (POST /platform/auth/refresh)
 	PlatformRefresh(c *gin.Context, params PlatformRefreshParams)
+	// ListPlatformConfigurations List global non-secret configuration definitions and defaults
+	// (GET /platform/settings/configurations)
+	ListPlatformConfigurations(c *gin.Context)
+	// PutPlatformConfiguration Create or update a global non-secret configuration
+	// (PUT /platform/settings/configurations/{configurationKey})
+	PutPlatformConfiguration(c *gin.Context, configurationKey ConfigurationKey, params PutPlatformConfigurationParams)
+	// ListPlatformDictionaries List global dictionaries as a platform administrator
+	// (GET /platform/settings/dictionaries)
+	ListPlatformDictionaries(c *gin.Context)
+	// ReplacePlatformDictionary Replace a complete global dictionary
+	// (PUT /platform/settings/dictionaries/{dictionaryCode})
+	ReplacePlatformDictionary(c *gin.Context, dictionaryCode DictionaryCode, params ReplacePlatformDictionaryParams)
 	// ListPlatformTenants List tenants as a global platform administrator
 	// (GET /platform/tenants)
 	ListPlatformTenants(c *gin.Context)
@@ -597,6 +851,21 @@ type ServerInterface interface {
 	// GetReadiness Report whether the process can serve traffic
 	// (GET /readyz)
 	GetReadiness(c *gin.Context)
+	// ListConfigurations List effective non-secret configuration
+	// (GET /settings/configurations)
+	ListConfigurations(c *gin.Context)
+	// PutConfiguration Create or replace an eligible tenant configuration override
+	// (PUT /settings/configurations/{configurationKey})
+	PutConfiguration(c *gin.Context, configurationKey ConfigurationKey, params PutConfigurationParams)
+	// ListDictionaries List effective tenant-over-global dictionaries
+	// (GET /settings/dictionaries)
+	ListDictionaries(c *gin.Context)
+	// DeleteDictionary Delete a tenant dictionary and reveal any global fallback
+	// (DELETE /settings/dictionaries/{dictionaryCode})
+	DeleteDictionary(c *gin.Context, dictionaryCode DictionaryCode, params DeleteDictionaryParams)
+	// ReplaceDictionary Create or replace a complete tenant dictionary
+	// (PUT /settings/dictionaries/{dictionaryCode})
+	ReplaceDictionary(c *gin.Context, dictionaryCode DictionaryCode, params ReplaceDictionaryParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -607,6 +876,57 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// ListAuditEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListAuditEvents(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAuditEventsParams
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "action", c.Request.URL.Query(), &params.Action, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter action: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "resource" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "resource", c.Request.URL.Query(), &params.Resource, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter resource: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", c.Request.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAuditEvents(c, params)
+}
 
 // AcceptInvitation operation middleware
 func (siw *ServerInterfaceWrapper) AcceptInvitation(c *gin.Context) {
@@ -817,6 +1137,19 @@ func (siw *ServerInterfaceWrapper) Refresh(c *gin.Context) {
 	}
 
 	siw.Handler.Refresh(c, params)
+}
+
+// ListEffectivePermissions operation middleware
+func (siw *ServerInterfaceWrapper) ListEffectivePermissions(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListEffectivePermissions(c)
 }
 
 // ListRoles operation middleware
@@ -1366,6 +1699,136 @@ func (siw *ServerInterfaceWrapper) PlatformRefresh(c *gin.Context) {
 	siw.Handler.PlatformRefresh(c, params)
 }
 
+// ListPlatformConfigurations operation middleware
+func (siw *ServerInterfaceWrapper) ListPlatformConfigurations(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListPlatformConfigurations(c)
+}
+
+// PutPlatformConfiguration operation middleware
+func (siw *ServerInterfaceWrapper) PutPlatformConfiguration(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "configurationKey" -------------
+	var configurationKey ConfigurationKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "configurationKey", c.Param("configurationKey"), &configurationKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter configurationKey: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutPlatformConfigurationParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PutPlatformConfiguration(c, configurationKey, params)
+}
+
+// ListPlatformDictionaries operation middleware
+func (siw *ServerInterfaceWrapper) ListPlatformDictionaries(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListPlatformDictionaries(c)
+}
+
+// ReplacePlatformDictionary operation middleware
+func (siw *ServerInterfaceWrapper) ReplacePlatformDictionary(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "dictionaryCode" -------------
+	var dictionaryCode DictionaryCode
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dictionaryCode", c.Param("dictionaryCode"), &dictionaryCode, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter dictionaryCode: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReplacePlatformDictionaryParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReplacePlatformDictionary(c, dictionaryCode, params)
+}
+
 // ListPlatformTenants operation middleware
 func (siw *ServerInterfaceWrapper) ListPlatformTenants(c *gin.Context) {
 
@@ -1561,6 +2024,196 @@ func (siw *ServerInterfaceWrapper) GetReadiness(c *gin.Context) {
 	siw.Handler.GetReadiness(c)
 }
 
+// ListConfigurations operation middleware
+func (siw *ServerInterfaceWrapper) ListConfigurations(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListConfigurations(c)
+}
+
+// PutConfiguration operation middleware
+func (siw *ServerInterfaceWrapper) PutConfiguration(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "configurationKey" -------------
+	var configurationKey ConfigurationKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "configurationKey", c.Param("configurationKey"), &configurationKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter configurationKey: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutConfigurationParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PutConfiguration(c, configurationKey, params)
+}
+
+// ListDictionaries operation middleware
+func (siw *ServerInterfaceWrapper) ListDictionaries(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListDictionaries(c)
+}
+
+// DeleteDictionary operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDictionary(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "dictionaryCode" -------------
+	var dictionaryCode DictionaryCode
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dictionaryCode", c.Param("dictionaryCode"), &dictionaryCode, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter dictionaryCode: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteDictionaryParams
+
+	// ------------- Required query parameter "expectedVersion" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "expectedVersion", c.Request.URL.Query(), &params.ExpectedVersion, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter expectedVersion: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteDictionary(c, dictionaryCode, params)
+}
+
+// ReplaceDictionary operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceDictionary(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "dictionaryCode" -------------
+	var dictionaryCode DictionaryCode
+
+	err = runtime.BindStyledParameterWithOptions("simple", "dictionaryCode", c.Param("dictionaryCode"), &dictionaryCode, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter dictionaryCode: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReplaceDictionaryParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReplaceDictionary(c, dictionaryCode, params)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -1597,6 +2250,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/platform/tenants", wrapper.ProvisionPlatformTenant)
 	router.POST(options.BaseURL+"/platform/tenants/:tenantId/suspend", wrapper.SuspendPlatformTenant)
 	router.POST(options.BaseURL+"/platform/tenants/:tenantId/reactivate", wrapper.ReactivatePlatformTenant)
+	router.GET(options.BaseURL+"/platform/settings/dictionaries", wrapper.ListPlatformDictionaries)
+	router.PUT(options.BaseURL+"/platform/settings/dictionaries/:dictionaryCode", wrapper.ReplacePlatformDictionary)
+	router.GET(options.BaseURL+"/platform/settings/configurations", wrapper.ListPlatformConfigurations)
+	router.PUT(options.BaseURL+"/platform/settings/configurations/:configurationKey", wrapper.PutPlatformConfiguration)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.Refresh)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.Logout)
 	router.POST(options.BaseURL+"/auth/logout-all", wrapper.LogoutAll)
@@ -1612,8 +2269,15 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/organization/users/:userId/assignment", wrapper.AssignUserOrganization)
 	router.GET(options.BaseURL+"/authorization/roles", wrapper.ListRoles)
 	router.POST(options.BaseURL+"/authorization/roles", wrapper.CreateRole)
+	router.GET(options.BaseURL+"/authorization/permissions", wrapper.ListEffectivePermissions)
 	router.GET(options.BaseURL+"/authorization/roles/:roleId/policies", wrapper.GetRolePolicySet)
 	router.PUT(options.BaseURL+"/authorization/roles/:roleId/policies", wrapper.ReplaceRolePolicies)
 	router.GET(options.BaseURL+"/authorization/users/:userId/roles", wrapper.GetUserRoleGrants)
 	router.PUT(options.BaseURL+"/authorization/users/:userId/roles", wrapper.ReplaceUserRoleGrants)
+	router.GET(options.BaseURL+"/settings/dictionaries", wrapper.ListDictionaries)
+	router.DELETE(options.BaseURL+"/settings/dictionaries/:dictionaryCode", wrapper.DeleteDictionary)
+	router.PUT(options.BaseURL+"/settings/dictionaries/:dictionaryCode", wrapper.ReplaceDictionary)
+	router.GET(options.BaseURL+"/settings/configurations", wrapper.ListConfigurations)
+	router.PUT(options.BaseURL+"/settings/configurations/:configurationKey", wrapper.PutConfiguration)
+	router.GET(options.BaseURL+"/audit/events", wrapper.ListAuditEvents)
 }

@@ -38,6 +38,12 @@ const (
 	ResourcePolicies Resource = "authorization.policies"
 	// ResourceUserRoles protects desired-state user role grants.
 	ResourceUserRoles Resource = "authorization.user-roles"
+	// ResourceDictionaries protects tenant dictionary management.
+	ResourceDictionaries Resource = "settings.dictionaries"
+	// ResourceConfigurations protects non-secret tenant configuration.
+	ResourceConfigurations Resource = "settings.configurations"
+	// ResourceAuditEvents protects tenant audit review.
+	ResourceAuditEvents Resource = "audit.events"
 	// ActionRead permits viewing a resource.
 	ActionRead Action = "read"
 	// ActionCreate permits creating a resource.

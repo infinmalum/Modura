@@ -6,24 +6,29 @@ import (
 
 	"github.com/modura-dev/modura/backend/internal/api/generated"
 	apihttp "github.com/modura-dev/modura/backend/internal/api/transport"
+	audithttp "github.com/modura-dev/modura/backend/internal/modules/audit/transport/http"
 	authorizationhttp "github.com/modura-dev/modura/backend/internal/modules/authorization/transport/http"
 	identityhttp "github.com/modura-dev/modura/backend/internal/modules/identity/transport/http"
 	organizationhttp "github.com/modura-dev/modura/backend/internal/modules/organization/transport/http"
 	platformadminhttp "github.com/modura-dev/modura/backend/internal/modules/platformadmin/transport/http"
 	platformtenanthttp "github.com/modura-dev/modura/backend/internal/modules/platformtenant/transport/http"
 	provisioninghttp "github.com/modura-dev/modura/backend/internal/modules/provisioning/transport/http"
+	settingshttp "github.com/modura-dev/modura/backend/internal/modules/settings/transport/http"
 )
 
 // Dependencies are the application capabilities required by HTTP delivery.
 type Dependencies struct {
-	Identity       identityhttp.Service
-	Authorizer     organizationhttp.Authorizer
-	Authorization  authorizationhttp.Service
-	Organization   organizationhttp.Service
-	PlatformAdmin  platformadminhttp.Service
-	PlatformTenant platformtenanthttp.Service
-	Provisioning   provisioninghttp.Service
-	Ready          func(context.Context) error
+	Identity         identityhttp.Service
+	Authorizer       organizationhttp.Authorizer
+	Authorization    authorizationhttp.Service
+	Organization     organizationhttp.Service
+	PlatformAdmin    platformadminhttp.Service
+	PlatformTenant   platformtenanthttp.Service
+	Provisioning     provisioninghttp.Service
+	Settings         settingshttp.Service
+	PlatformSettings settingshttp.PlatformService
+	Audit            audithttp.Service
+	Ready            func(context.Context) error
 }
 
 // Identity is the tenant identity API consumed by HTTP delivery.
@@ -47,6 +52,15 @@ type PlatformTenant = platformtenanthttp.Service
 // Provisioning is the tenant provisioning API consumed by HTTP delivery.
 type Provisioning = provisioninghttp.Service
 
+// Settings is the tenant settings API consumed by HTTP delivery.
+type Settings = settingshttp.Service
+
+// PlatformSettings is the global settings API consumed by HTTP delivery.
+type PlatformSettings = settingshttp.PlatformService
+
+// Audit is the tenant audit query API consumed by HTTP delivery.
+type Audit = audithttp.Service
+
 // Handler contains no business behavior; embedding composes the operation sets.
 type Handler struct {
 	*identityhttp.IdentityHandler
@@ -55,6 +69,9 @@ type Handler struct {
 	*platformadminhttp.PlatformAdminHandler
 	*platformtenanthttp.PlatformTenantHandler
 	*provisioninghttp.ProvisioningHandler
+	*settingshttp.SettingsHandler
+	*settingshttp.PlatformSettingsHandler
+	*audithttp.AuditHandler
 	*SystemHandler
 }
 
@@ -64,13 +81,16 @@ func New(deps Dependencies, cookieSecure bool, newCSRF func() (string, error)) *
 	identityHandler := identityhttp.NewHandler(deps.Identity, security)
 	platformAdminHandler := platformadminhttp.NewHandler(deps.PlatformAdmin, security)
 	return &Handler{
-		IdentityHandler:       identityHandler,
-		AuthorizationHandler:  authorizationhttp.NewHandler(deps.Authorization, identityHandler, security),
-		OrganizationHandler:   organizationhttp.NewHandler(deps.Organization, deps.Authorizer, identityHandler, security),
-		PlatformAdminHandler:  platformAdminHandler,
-		PlatformTenantHandler: platformtenanthttp.NewHandler(deps.PlatformTenant, platformAdminHandler, security),
-		ProvisioningHandler:   provisioninghttp.NewHandler(deps.Provisioning, platformAdminHandler, security),
-		SystemHandler:         newSystemHandler(deps.Ready, security),
+		IdentityHandler:         identityHandler,
+		AuthorizationHandler:    authorizationhttp.NewHandler(deps.Authorization, identityHandler, security),
+		OrganizationHandler:     organizationhttp.NewHandler(deps.Organization, deps.Authorizer, identityHandler, security),
+		PlatformAdminHandler:    platformAdminHandler,
+		PlatformTenantHandler:   platformtenanthttp.NewHandler(deps.PlatformTenant, platformAdminHandler, security),
+		ProvisioningHandler:     provisioninghttp.NewHandler(deps.Provisioning, platformAdminHandler, security),
+		SettingsHandler:         settingshttp.NewHandler(deps.Settings, deps.Authorizer, identityHandler, security),
+		PlatformSettingsHandler: settingshttp.NewPlatformHandler(deps.PlatformSettings, platformAdminHandler, security),
+		AuditHandler:            audithttp.NewHandler(deps.Audit, deps.Authorizer, identityHandler, security),
+		SystemHandler:           newSystemHandler(deps.Ready, security),
 	}
 }
 

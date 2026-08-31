@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	casbin "github.com/casbin/casbin/v3"
@@ -98,6 +99,36 @@ func (s *Service) ResolveDataScope(ctx context.Context, actor identity.Actor, pe
 	return resolved, nil
 }
 
+// EffectivePermissions returns the actor's canonical permission projection.
+func (s *Service) EffectivePermissions(ctx context.Context, actor identity.Actor) ([]Permission, error) {
+	if actor.TenantID == "" || actor.UserID == "" || actor.SessionID == "" {
+		return nil, ErrDenied
+	}
+	roles, err := s.store.LoadActorPolicies(ctx, actor)
+	if err != nil {
+		return nil, fmt.Errorf("load effective permissions: %w", err)
+	}
+	seen := make(map[Permission]struct{})
+	for _, role := range roles {
+		for _, policy := range role.Policies {
+			if knownPermission(policy.Permission) {
+				seen[policy.Permission] = struct{}{}
+			}
+		}
+	}
+	permissions := make([]Permission, 0, len(seen))
+	for permission := range seen {
+		permissions = append(permissions, permission)
+	}
+	slices.SortFunc(permissions, func(a, b Permission) int {
+		if comparison := strings.Compare(string(a.Resource), string(b.Resource)); comparison != 0 {
+			return comparison
+		}
+		return strings.Compare(string(a.Action), string(b.Action))
+	})
+	return permissions, nil
+}
+
 func (s *Service) actorPolicies(ctx context.Context, actor identity.Actor, permission Permission) ([]RolePolicies, error) {
 	if actor.TenantID == "" || actor.UserID == "" || actor.SessionID == "" || !knownPermission(permission) {
 		return nil, ErrDenied
@@ -111,7 +142,7 @@ func (s *Service) actorPolicies(ctx context.Context, actor identity.Actor, permi
 
 func knownPermission(permission Permission) bool {
 	actions := map[Action]bool{ActionRead: true, ActionCreate: true, ActionUpdate: true, ActionDelete: true}
-	resources := map[Resource]bool{ResourceDepartments: true, ResourcePositions: true, ResourceUserOrganization: true, ResourceRoles: true, ResourcePolicies: true, ResourceUserRoles: true}
+	resources := map[Resource]bool{ResourceDepartments: true, ResourcePositions: true, ResourceUserOrganization: true, ResourceRoles: true, ResourcePolicies: true, ResourceUserRoles: true, ResourceDictionaries: true, ResourceConfigurations: true, ResourceAuditEvents: true}
 	return actions[permission.Action] && resources[permission.Resource]
 }
 

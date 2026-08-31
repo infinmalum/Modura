@@ -99,7 +99,7 @@ func integrationPool(t *testing.T) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), "DROP SCHEMA IF EXISTS modura CASCADE") })
-	for _, name := range []string{"000001_initialize.up.sql", "000002_identity_foundation.up.sql", "000003_organization_foundation.up.sql", "000004_authorization_and_provisioning.up.sql", "000005_platform_identity.up.sql", "000006_platform_tenant_audit.up.sql", "000007_authorization_policies.up.sql", "000008_audit_state_snapshots.up.sql"} {
+	for _, name := range []string{"000001_initialize.up.sql", "000002_identity_foundation.up.sql", "000003_organization_foundation.up.sql", "000004_authorization_and_provisioning.up.sql", "000005_platform_identity.up.sql", "000006_platform_tenant_audit.up.sql", "000007_authorization_policies.up.sql", "000008_audit_state_snapshots.up.sql", "000009_settings_foundation.up.sql"} {
 		migration, err := os.ReadFile(filepath.Join("..", "..", "..", "platform", "database", "migrations", name))
 		if err != nil {
 			t.Fatal(err)

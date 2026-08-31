@@ -17,14 +17,17 @@ import (
 
 // Dependencies contains runtime application and health dependencies.
 type Dependencies struct {
-	Identity       handler.Identity
-	Authorizer     handler.Authorizer
-	Authorization  handler.Authorization
-	Organization   handler.Organization
-	PlatformAdmin  handler.PlatformAdmin
-	PlatformTenant handler.PlatformTenant
-	Provisioning   handler.Provisioning
-	Ready          func(context.Context) error
+	Identity         handler.Identity
+	Authorizer       handler.Authorizer
+	Authorization    handler.Authorization
+	Organization     handler.Organization
+	PlatformAdmin    handler.PlatformAdmin
+	PlatformTenant   handler.PlatformTenant
+	Provisioning     handler.Provisioning
+	Settings         handler.Settings
+	PlatformSettings handler.PlatformSettings
+	Audit            handler.Audit
+	Ready            func(context.Context) error
 }
 
 // New returns a configured HTTP server without starting it.
@@ -36,7 +39,7 @@ func New(cfg config.HTTP, logger *slog.Logger, dependencies ...Dependencies) *ht
 	if len(dependencies) > 0 {
 		deps = dependencies[0]
 	}
-	contractHandler := handler.New(handler.Dependencies{Identity: deps.Identity, Authorizer: deps.Authorizer, Authorization: deps.Authorization, Organization: deps.Organization, PlatformAdmin: deps.PlatformAdmin, PlatformTenant: deps.PlatformTenant, Provisioning: deps.Provisioning, Ready: deps.Ready}, cfg.CookieSecure, func() (string, error) { return identity.NewOpaqueToken(32) })
+	contractHandler := handler.New(handler.Dependencies{Identity: deps.Identity, Authorizer: deps.Authorizer, Authorization: deps.Authorization, Organization: deps.Organization, PlatformAdmin: deps.PlatformAdmin, PlatformTenant: deps.PlatformTenant, Provisioning: deps.Provisioning, Settings: deps.Settings, PlatformSettings: deps.PlatformSettings, Audit: deps.Audit, Ready: deps.Ready}, cfg.CookieSecure, func() (string, error) { return identity.NewOpaqueToken(32) })
 	generated.RegisterHandlersWithOptions(router, contractHandler, generated.GinServerOptions{BaseURL: "/api"})
 	return &http.Server{Addr: cfg.Address, Handler: router, ReadTimeout: cfg.ReadTimeout, WriteTimeout: cfg.WriteTimeout, IdleTimeout: cfg.IdleTimeout, MaxHeaderBytes: cfg.MaxHeaderBytes}
 }

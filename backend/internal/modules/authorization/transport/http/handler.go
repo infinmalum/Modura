@@ -22,12 +22,35 @@ type ActorResolver interface {
 // Service is the authorization application API consumed by HTTP delivery.
 type Service interface {
 	Authorize(context.Context, identity.Actor, authorization.Permission) error
+	EffectivePermissions(context.Context, identity.Actor) ([]authorization.Permission, error)
 	ListRoles(context.Context, identity.Actor) ([]authorization.RoleView, error)
 	CreateRole(context.Context, authorization.WriteContext, string, string) (authorization.RoleView, error)
 	GetRolePolicySet(context.Context, identity.Actor, authorization.RoleID) (authorization.RolePolicySet, error)
 	ReplaceRolePolicies(context.Context, authorization.WriteContext, authorization.RoleID, int64, []authorization.Policy) (int64, error)
 	GetUserRoleGrants(context.Context, identity.Actor, identity.UserID) (authorization.UserRoleGrantSet, error)
 	ReplaceUserRoleGrants(context.Context, authorization.WriteContext, identity.UserID, int64, []authorization.RoleID) (authorization.UserRoleGrantSet, error)
+}
+
+// ListEffectivePermissions projects canonical permissions for frontend navigation.
+func (h *AuthorizationHandler) ListEffectivePermissions(c *gin.Context) {
+	if h.service == nil || h.actors == nil {
+		h.security.Problem(c, http.StatusServiceUnavailable, "service unavailable")
+		return
+	}
+	actor, ok := h.actors.Actor(c)
+	if !ok {
+		return
+	}
+	permissions, err := h.service.EffectivePermissions(c.Request.Context(), actor)
+	if err != nil {
+		h.security.Problem(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	response := make([]generated.EffectivePermission, 0, len(permissions))
+	for _, permission := range permissions {
+		response = append(response, generated.EffectivePermission{Resource: string(permission.Resource), Action: string(permission.Action)})
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 // GetRolePolicySet returns one tenant role's current policy desired state.

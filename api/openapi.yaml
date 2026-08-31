@@ -214,6 +214,80 @@ paths:
           $ref: "#/components/responses/CsrfFailed"
         "404":
           description: Tenant not found
+  /platform/settings/dictionaries:
+    get:
+      operationId: listPlatformDictionaries
+      summary: List global dictionaries as a platform administrator
+      tags: [platform-settings]
+      security: [{ platformBearerAuth: [] }]
+      responses:
+        "200":
+          description: Global dictionaries
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Dictionary" } }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+  /platform/settings/dictionaries/{dictionaryCode}:
+    put:
+      operationId: replacePlatformDictionary
+      summary: Replace a complete global dictionary
+      tags: [platform-settings]
+      security: [{ platformBearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/DictionaryCode" }
+        - { $ref: "#/components/parameters/CsrfToken" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReplacePlatformDictionaryRequest" }
+      responses:
+        "200":
+          description: Global dictionary desired state stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dictionary" }
+        "400": { description: Invalid request }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/CsrfFailed" }
+        "409": { description: Version conflict }
+  /platform/settings/configurations:
+    get:
+      operationId: listPlatformConfigurations
+      summary: List global non-secret configuration definitions and defaults
+      tags: [platform-settings]
+      security: [{ platformBearerAuth: [] }]
+      responses:
+        "200":
+          description: Global configurations
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Configuration" } }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+  /platform/settings/configurations/{configurationKey}:
+    put:
+      operationId: putPlatformConfiguration
+      summary: Create or update a global non-secret configuration
+      tags: [platform-settings]
+      security: [{ platformBearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ConfigurationKey" }
+        - { $ref: "#/components/parameters/CsrfToken" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PutPlatformConfigurationRequest" }
+      responses:
+        "200":
+          description: Global configuration stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Configuration" }
+        "400": { description: Invalid request }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/CsrfFailed" }
+        "409": { description: Version conflict }
   /auth/refresh:
     post:
       operationId: refresh
@@ -571,6 +645,19 @@ paths:
         "400": { description: Invalid or duplicate role }
         "401": { $ref: "#/components/responses/AuthenticationFailed" }
         "403": { $ref: "#/components/responses/AuthorizationFailed" }
+  /authorization/permissions:
+    get:
+      operationId: listEffectivePermissions
+      summary: List canonical permissions granted to the authenticated tenant actor
+      tags: [authorization]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Effective canonical permission list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/EffectivePermission" } }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
   /authorization/roles/{roleId}/policies:
     get:
       operationId: getRolePolicySet
@@ -656,6 +743,133 @@ paths:
         "403": { $ref: "#/components/responses/AuthorizationFailed" }
         "404": { description: User not found in the tenant }
         "409": { description: Expected grant version is stale }
+  /settings/dictionaries:
+    get:
+      operationId: listDictionaries
+      summary: List effective tenant-over-global dictionaries
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: settings.dictionaries, action: read }
+      responses:
+        "200":
+          description: Effective dictionary list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Dictionary" } }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+  /settings/dictionaries/{dictionaryCode}:
+    put:
+      operationId: replaceDictionary
+      summary: Create or replace a complete tenant dictionary
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: settings.dictionaries, action: update }
+      parameters:
+        - { $ref: "#/components/parameters/DictionaryCode" }
+        - { $ref: "#/components/parameters/CsrfToken" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReplaceDictionaryRequest" }
+      responses:
+        "200":
+          description: Dictionary desired state stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dictionary" }
+        "400": { description: Invalid dictionary desired state }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+        "404": { description: Tenant dictionary not found for an update }
+        "409": { description: Expected dictionary version is stale }
+    delete:
+      operationId: deleteDictionary
+      summary: Delete a tenant dictionary and reveal any global fallback
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: settings.dictionaries, action: delete }
+      parameters:
+        - { $ref: "#/components/parameters/DictionaryCode" }
+        - { $ref: "#/components/parameters/ExpectedVersion" }
+        - { $ref: "#/components/parameters/CsrfToken" }
+      responses:
+        "204": { description: Tenant dictionary deleted }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+        "404": { description: Tenant dictionary not found }
+        "409": { description: Expected dictionary version is stale }
+  /settings/configurations:
+    get:
+      operationId: listConfigurations
+      summary: List effective non-secret configuration
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: settings.configurations, action: read }
+      responses:
+        "200":
+          description: Effective configuration list
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Configuration" } }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+  /settings/configurations/{configurationKey}:
+    put:
+      operationId: putConfiguration
+      summary: Create or replace an eligible tenant configuration override
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: settings.configurations, action: update }
+      parameters:
+        - { $ref: "#/components/parameters/ConfigurationKey" }
+        - { $ref: "#/components/parameters/CsrfToken" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PutConfigurationRequest" }
+      responses:
+        "200":
+          description: Tenant configuration override stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Configuration" }
+        "400": { description: Value does not match the declared type }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
+        "404": { description: Configuration definition not found }
+        "409": { description: Expected configuration version is stale }
+  /audit/events:
+    get:
+      operationId: listAuditEvents
+      summary: List redacted audit events in the authenticated tenant
+      tags: [audit]
+      security: [{ bearerAuth: [] }]
+      x-modura-permission: { resource: audit.events, action: read }
+      parameters:
+        - name: action
+          in: query
+          schema: { type: string, maxLength: 128 }
+        - name: resource
+          in: query
+          schema: { type: string, maxLength: 128 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Newest-first bounded tenant audit page
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AuditEvent" } }
+        "400": { description: Invalid audit filter or page }
+        "401": { $ref: "#/components/responses/AuthenticationFailed" }
+        "403": { $ref: "#/components/responses/AuthorizationFailed" }
 components:
   securitySchemes:
     bearerAuth:
@@ -703,6 +917,21 @@ components:
       schema:
         type: string
         format: uuid
+    DictionaryCode:
+      name: dictionaryCode
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    ConfigurationKey:
+      name: configurationKey
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    ExpectedVersion:
+      name: expectedVersion
+      in: query
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
     TenantId:
       name: tenantId
       in: path
@@ -954,6 +1183,13 @@ components:
         name: { type: string }
         reserved: { type: boolean }
         version: { type: integer, format: int64, minimum: 1 }
+    EffectivePermission:
+      type: object
+      additionalProperties: false
+      required: [resource, action]
+      properties:
+        resource: { type: string }
+        action: { type: string }
     CreateRoleRequest:
       type: object
       additionalProperties: false
@@ -975,7 +1211,7 @@ components:
       properties:
         resource:
           type: string
-          enum: [organization.departments, organization.positions, organization.user-organization, authorization.roles, authorization.policies, authorization.user-roles]
+          enum: [organization.departments, organization.positions, organization.user-organization, authorization.roles, authorization.policies, authorization.user-roles, settings.dictionaries, settings.configurations, audit.events]
         action:
           type: string
           enum: [read, create, update, delete]
@@ -1030,6 +1266,108 @@ components:
           type: array
           uniqueItems: true
           items: { type: string, format: uuid }
+    SettingSource:
+      type: string
+      enum: [global, tenant]
+    ConfigurationValueType:
+      type: string
+      enum: [string, boolean, integer, json]
+    DictionaryItem:
+      type: object
+      additionalProperties: false
+      required: [code, label, sortOrder, enabled]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 64 }
+        label: { type: string, minLength: 1, maxLength: 128 }
+        sortOrder: { type: integer }
+        enabled: { type: boolean }
+    Dictionary:
+      type: object
+      additionalProperties: false
+      required: [code, name, source, version, items]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        source: { $ref: "#/components/schemas/SettingSource" }
+        version: { type: integer, format: int64, minimum: 1 }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DictionaryItem" }
+    ReplaceDictionaryRequest:
+      type: object
+      additionalProperties: false
+      required: [name, expectedVersion, items]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 128 }
+        expectedVersion: { type: integer, format: int64, minimum: 0 }
+        items:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/DictionaryItem" }
+    ReplacePlatformDictionaryRequest:
+      type: object
+      additionalProperties: false
+      required: [name, expectedVersion, items, reason]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 128 }
+        expectedVersion: { type: integer, format: int64, minimum: 0 }
+        items:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/DictionaryItem" }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    Configuration:
+      type: object
+      additionalProperties: false
+      required: [key, name, valueType, tenantOverridable, source, version, value]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        valueType: { $ref: "#/components/schemas/ConfigurationValueType" }
+        tenantOverridable: { type: boolean }
+        source: { $ref: "#/components/schemas/SettingSource" }
+        version: { type: integer, format: int64, minimum: 1 }
+        value: {}
+    PutConfigurationRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, value]
+      properties:
+        expectedVersion: { type: integer, format: int64, minimum: 0 }
+        value: {}
+    PutPlatformConfigurationRequest:
+      type: object
+      additionalProperties: false
+      required: [name, valueType, tenantOverridable, expectedVersion, value, reason]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 128 }
+        valueType: { $ref: "#/components/schemas/ConfigurationValueType" }
+        tenantOverridable: { type: boolean }
+        expectedVersion: { type: integer, format: int64, minimum: 0 }
+        value: {}
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    AuditEvent:
+      type: object
+      additionalProperties: false
+      required: [id, actorType, actorId, tenantId, action, resource, resourceId, reason, result, correlationId, occurredAt]
+      properties:
+        id: { type: string, format: uuid }
+        actorType:
+          type: string
+          enum: [platform_administrator, tenant_user]
+        actorId: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        action: { type: string }
+        resource: { type: string }
+        resourceId: { type: string, format: uuid }
+        reason: { type: string }
+        result:
+          type: string
+          enum: [succeeded, failed]
+        correlationId: { type: string }
+        occurredAt: { type: string, format: date-time }
+        beforeState: {}
+        afterState: {}
     AccessTokenResponse:
       type: object
       additionalProperties: false

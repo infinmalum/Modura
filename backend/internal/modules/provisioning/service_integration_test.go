@@ -20,6 +20,8 @@ import (
 	"github.com/modura-dev/modura/backend/internal/modules/organization"
 	organizationpostgres "github.com/modura-dev/modura/backend/internal/modules/organization/postgres"
 	"github.com/modura-dev/modura/backend/internal/modules/platformadmin"
+	"github.com/modura-dev/modura/backend/internal/modules/settings"
+	settingspostgres "github.com/modura-dev/modura/backend/internal/modules/settings/postgres"
 	"github.com/modura-dev/modura/backend/internal/platform/database"
 )
 
@@ -35,7 +37,7 @@ func TestProvisionIsAtomicAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auditService, err := audit.NewService(auditpostgres.New(), sequentialIDs())
+	auditService, err := audit.NewService(auditpostgres.New(), auditIDs())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,6 +113,69 @@ func TestProvisionIsAtomicAndIdempotent(t *testing.T) {
 	if err := authorizationService.Authorize(context.Background(), nonAdministrator, authorization.Permission{Resource: authorization.ResourceDepartments, Action: authorization.ActionRead}); !errors.Is(err, authorization.ErrDenied) {
 		t.Fatalf("non-administrator permission error = %v", err)
 	}
+	seedGlobalSettings(t, pool, now)
+	settingsService, err := settings.NewService(settingspostgres.New(pool), database.NewTransactor(pool), auditService, func() time.Time { return now }, settingsIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	platformWrite := settings.PlatformWriteContext{Actor: request.Actor, Reason: "standardize global settings", CorrelationID: "request-platform-settings-1"}
+	globalDictionary, err := settingsService.ReplaceGlobalDictionary(context.Background(), platformWrite, "priority", "Priority", 0, []settings.DictionaryItem{{Code: "high", Label: "High", Enabled: true}})
+	if err != nil || globalDictionary.Source != "global" || globalDictionary.Version != 1 {
+		t.Fatalf("global dictionary=%+v err=%v", globalDictionary, err)
+	}
+	if _, err := settingsService.ReplaceGlobalDictionary(context.Background(), platformWrite, "priority", "Stale", 2, nil); !errors.Is(err, settings.ErrConflict) {
+		t.Fatalf("stale global dictionary error=%v", err)
+	}
+	globalConfiguration, err := settingsService.PutGlobalConfiguration(context.Background(), platformWrite, "feature.preview", "Preview Features", "boolean", true, 0, []byte("false"))
+	if err != nil || globalConfiguration.Source != "global" || globalConfiguration.Version != 1 {
+		t.Fatalf("global configuration=%+v err=%v", globalConfiguration, err)
+	}
+	if _, err := settingsService.PutGlobalConfiguration(context.Background(), platformWrite, "feature.preview", "Preview Features", "boolean", true, 2, []byte("true")); !errors.Is(err, settings.ErrConflict) {
+		t.Fatalf("stale global configuration error=%v", err)
+	}
+	var platformSettingsAudits int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM modura.audit_events WHERE tenant_id IS NULL AND actor_type = 'platform_administrator' AND action LIKE 'settings.global_%'`).Scan(&platformSettingsAudits); err != nil || platformSettingsAudits != 2 {
+		t.Fatalf("platform settings audits=%d err=%v", platformSettingsAudits, err)
+	}
+	dictionaries, err := settingsService.ListDictionaries(context.Background(), administrator)
+	if err != nil || len(dictionaries) != 2 || dictionaries[0].Source != "global" || dictionaries[0].Items[0].Code != "enabled" {
+		t.Fatalf("global dictionary fallback=%+v err=%v", dictionaries, err)
+	}
+	settingsWrite := settings.WriteContext{Actor: administrator, CorrelationID: "request-settings-1"}
+	dictionary, err := settingsService.ReplaceDictionary(context.Background(), settingsWrite, "account_status", "Tenant Account Status", 0, []settings.DictionaryItem{{Code: "active", Label: "Active", Enabled: true}})
+	if err != nil || dictionary.Source != "tenant" || dictionary.Version != 1 {
+		t.Fatalf("tenant dictionary=%+v err=%v", dictionary, err)
+	}
+	if _, err := settingsService.ReplaceDictionary(context.Background(), settingsWrite, "account_status", "Stale", 2, nil); !errors.Is(err, settings.ErrConflict) {
+		t.Fatalf("stale dictionary error=%v", err)
+	}
+	configurations, err := settingsService.ListConfigurations(context.Background(), administrator)
+	if err != nil || len(configurations) != 2 || configurations[1].Key != "ui.compact" || configurations[1].Source != "global" || string(configurations[1].Value) != "false" {
+		t.Fatalf("global configuration=%+v err=%v", configurations, err)
+	}
+	configuration, err := settingsService.PutConfiguration(context.Background(), settingsWrite, "ui.compact", 0, []byte("true"))
+	if err != nil || configuration.Source != "tenant" || configuration.Version != 1 || string(configuration.Value) != "true" {
+		t.Fatalf("tenant configuration=%+v err=%v", configuration, err)
+	}
+	if _, err := settingsService.PutConfiguration(context.Background(), settingsWrite, "ui.compact", 1, []byte(`"not-boolean"`)); err == nil {
+		t.Fatal("configuration type mismatch succeeded")
+	}
+	var settingsAudits int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM modura.audit_events WHERE tenant_id = $1 AND action LIKE 'settings.%' AND after_state IS NOT NULL`, first.TenantID).Scan(&settingsAudits); err != nil || settingsAudits != 2 {
+		t.Fatalf("settings audits=%d err=%v", settingsAudits, err)
+	}
+	if err := auditService.EnableQueries(auditpostgres.New(pool)); err != nil {
+		t.Fatal(err)
+	}
+	auditRecords, err := auditService.List(context.Background(), first.TenantID, "", "", 100, 0)
+	if err != nil || len(auditRecords) < 6 {
+		t.Fatalf("tenant audit records=%d err=%v", len(auditRecords), err)
+	}
+	for _, record := range auditRecords {
+		if record.TenantID != first.TenantID {
+			t.Fatalf("cross-tenant audit record=%+v", record)
+		}
+	}
 
 	duplicate := request
 	duplicate.IdempotencyKey = "018bcfe5-6800-7000-8000-000000000302"
@@ -167,6 +232,39 @@ func managementIDs() func(time.Time) (string, error) {
 	}
 }
 
+func settingsIDs() func(time.Time) (string, error) {
+	sequence := 0
+	return func(time.Time) (string, error) {
+		sequence++
+		return fmt.Sprintf("018bcfe5-6800-7000-a000-%012d", 900+sequence), nil
+	}
+}
+
+func auditIDs() func(time.Time) (string, error) {
+	sequence := 0
+	return func(time.Time) (string, error) {
+		sequence++
+		return fmt.Sprintf("018bcfe5-6800-7000-c000-%012d", 1000+sequence), nil
+	}
+}
+
+func seedGlobalSettings(t *testing.T, pool *pgxpool.Pool, now time.Time) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO modura.global_dictionary_types (id, code, name, version, created_at, updated_at) VALUES ('018bcfe5-6800-7000-b000-000000000001', 'account_status', 'Account Status', 1, $1, $1)`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO modura.global_dictionary_items (id, dictionary_type_id, code, label, sort_order, enabled, created_at, updated_at) VALUES ('018bcfe5-6800-7000-b000-000000000002', '018bcfe5-6800-7000-b000-000000000001', 'enabled', 'Enabled', 10, true, $1, $1)`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO modura.configuration_definitions (id, key, name, value_type, tenant_overridable, created_at, updated_at) VALUES ('018bcfe5-6800-7000-b000-000000000003', 'ui.compact', 'Compact UI', 'boolean', true, $1, $1)`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO modura.global_configuration_values (key, value, version, created_at, updated_at) VALUES ('ui.compact', 'false', 1, $1, $1)`, now); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func integrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	url := os.Getenv("MODURA_TEST_DATABASE_URL")
@@ -201,7 +299,7 @@ func integrationPool(t *testing.T) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), "DROP SCHEMA IF EXISTS modura CASCADE") })
-	for _, name := range []string{"000001_initialize.up.sql", "000002_identity_foundation.up.sql", "000003_organization_foundation.up.sql", "000004_authorization_and_provisioning.up.sql", "000005_platform_identity.up.sql", "000006_platform_tenant_audit.up.sql", "000007_authorization_policies.up.sql", "000008_audit_state_snapshots.up.sql"} {
+	for _, name := range []string{"000001_initialize.up.sql", "000002_identity_foundation.up.sql", "000003_organization_foundation.up.sql", "000004_authorization_and_provisioning.up.sql", "000005_platform_identity.up.sql", "000006_platform_tenant_audit.up.sql", "000007_authorization_policies.up.sql", "000008_audit_state_snapshots.up.sql", "000009_settings_foundation.up.sql"} {
 		migration, err := os.ReadFile(filepath.Join("..", "..", "platform", "database", "migrations", name))
 		if err != nil {
 			t.Fatal(err)

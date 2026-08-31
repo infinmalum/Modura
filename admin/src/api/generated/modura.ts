@@ -207,6 +207,11 @@ export interface Role {
   version: number;
 }
 
+export interface EffectivePermission {
+  resource: string;
+  action: string;
+}
+
 export interface CreateRoleRequest {
   /**
    * @minLength 1
@@ -241,6 +246,9 @@ export const RolePolicyResource = {
   authorizationroles: "authorization.roles",
   authorizationpolicies: "authorization.policies",
   "authorizationuser-roles": "authorization.user-roles",
+  settingsdictionaries: "settings.dictionaries",
+  settingsconfigurations: "settings.configurations",
+  auditevents: "audit.events",
 } as const;
 
 export type RolePolicyAction =
@@ -289,6 +297,143 @@ export interface ReplaceUserRoleGrantsRequest {
   /** @minimum 1 */
   expectedVersion: number;
   roleIds: string[];
+}
+
+export type SettingSource = (typeof SettingSource)[keyof typeof SettingSource];
+
+export const SettingSource = {
+  global: "global",
+  tenant: "tenant",
+} as const;
+
+export type ConfigurationValueType =
+  (typeof ConfigurationValueType)[keyof typeof ConfigurationValueType];
+
+export const ConfigurationValueType = {
+  string: "string",
+  boolean: "boolean",
+  integer: "integer",
+  json: "json",
+} as const;
+
+export interface DictionaryItem {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  code: string;
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  label: string;
+  sortOrder: number;
+  enabled: boolean;
+}
+
+export interface Dictionary {
+  code: string;
+  name: string;
+  source: SettingSource;
+  /** @minimum 1 */
+  version: number;
+  items: DictionaryItem[];
+}
+
+export interface ReplaceDictionaryRequest {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string;
+  /** @minimum 0 */
+  expectedVersion: number;
+  /** @maxItems 500 */
+  items: DictionaryItem[];
+}
+
+export interface ReplacePlatformDictionaryRequest {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string;
+  /** @minimum 0 */
+  expectedVersion: number;
+  /** @maxItems 500 */
+  items: DictionaryItem[];
+  /**
+   * @minLength 1
+   * @maxLength 500
+   */
+  reason: string;
+}
+
+export interface Configuration {
+  key: string;
+  name: string;
+  valueType: ConfigurationValueType;
+  tenantOverridable: boolean;
+  source: SettingSource;
+  /** @minimum 1 */
+  version: number;
+  value: unknown;
+}
+
+export interface PutConfigurationRequest {
+  /** @minimum 0 */
+  expectedVersion: number;
+  value: unknown;
+}
+
+export interface PutPlatformConfigurationRequest {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string;
+  valueType: ConfigurationValueType;
+  tenantOverridable: boolean;
+  /** @minimum 0 */
+  expectedVersion: number;
+  value: unknown;
+  /**
+   * @minLength 1
+   * @maxLength 500
+   */
+  reason: string;
+}
+
+export type AuditEventActorType =
+  (typeof AuditEventActorType)[keyof typeof AuditEventActorType];
+
+export const AuditEventActorType = {
+  platform_administrator: "platform_administrator",
+  tenant_user: "tenant_user",
+} as const;
+
+export type AuditEventResult =
+  (typeof AuditEventResult)[keyof typeof AuditEventResult];
+
+export const AuditEventResult = {
+  succeeded: "succeeded",
+  failed: "failed",
+} as const;
+
+export interface AuditEvent {
+  id: string;
+  actorType: AuditEventActorType;
+  actorId: string;
+  tenantId: string;
+  action: string;
+  resource: string;
+  resourceId: string;
+  reason: string;
+  result: AuditEventResult;
+  correlationId: string;
+  occurredAt: string;
+  beforeState?: unknown;
+  afterState?: unknown;
 }
 
 export type AccessTokenResponseTokenType =
@@ -347,6 +492,35 @@ export type AuthorizationFailedResponse = Problem;
 export type CsrfTokenParameter = string;
 
 export type IdempotencyKeyParameter = string;
+
+export type ExpectedVersionParameter = number;
+
+export type DeleteDictionaryParams = {
+  /**
+   * @minimum 1
+   */
+  expectedVersion: ExpectedVersionParameter;
+};
+
+export type ListAuditEventsParams = {
+  /**
+   * @maxLength 128
+   */
+  action?: string;
+  /**
+   * @maxLength 128
+   */
+  resource?: string;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
+};
 
 const withQueryKey = <T extends object, K>(
   query: T,
@@ -1732,6 +1906,712 @@ export const useReactivatePlatformTenant = <
 > => {
   return useMutation(
     getReactivatePlatformTenantMutationOptions(options),
+    queryClient,
+  );
+};
+
+export type listPlatformDictionariesResponse200 = {
+  data: Dictionary[];
+  status: 200;
+};
+
+export type listPlatformDictionariesResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type listPlatformDictionariesResponseSuccess =
+  listPlatformDictionariesResponse200 & {
+    headers: Headers;
+  };
+export type listPlatformDictionariesResponseError =
+  listPlatformDictionariesResponse401 & {
+    headers: Headers;
+  };
+
+export type listPlatformDictionariesResponse =
+  | listPlatformDictionariesResponseSuccess
+  | listPlatformDictionariesResponseError;
+
+export const getListPlatformDictionariesUrl = () => {
+  return `/api/platform/settings/dictionaries`;
+};
+
+/**
+ * @summary List global dictionaries as a platform administrator
+ */
+export const listPlatformDictionaries = async (
+  options?: RequestInit,
+): Promise<listPlatformDictionariesResponse> => {
+  const res = await fetch(getListPlatformDictionariesUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listPlatformDictionariesResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listPlatformDictionariesResponse;
+};
+
+export const getListPlatformDictionariesQueryKey = () => {
+  return [`/api/platform/settings/dictionaries`] as const;
+};
+
+export const getListPlatformDictionariesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlatformDictionaries>>,
+  TError = AuthenticationFailedResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listPlatformDictionaries>>,
+      TError,
+      TData
+    >
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPlatformDictionariesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPlatformDictionaries>>
+  > = ({ signal }) => listPlatformDictionaries({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPlatformDictionaries>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListPlatformDictionariesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlatformDictionaries>>
+>;
+export type ListPlatformDictionariesQueryError = AuthenticationFailedResponse;
+
+export function useListPlatformDictionaries<
+  TData = Awaited<ReturnType<typeof listPlatformDictionaries>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformDictionaries>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformDictionaries>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformDictionaries>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListPlatformDictionaries<
+  TData = Awaited<ReturnType<typeof listPlatformDictionaries>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformDictionaries>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformDictionaries>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformDictionaries>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListPlatformDictionaries<
+  TData = Awaited<ReturnType<typeof listPlatformDictionaries>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformDictionaries>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List global dictionaries as a platform administrator
+ */
+
+export function useListPlatformDictionaries<
+  TData = Awaited<ReturnType<typeof listPlatformDictionaries>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformDictionaries>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getListPlatformDictionariesQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type replacePlatformDictionaryResponse200 = {
+  data: Dictionary;
+  status: 200;
+};
+
+export type replacePlatformDictionaryResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type replacePlatformDictionaryResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type replacePlatformDictionaryResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type replacePlatformDictionaryResponse409 = {
+  data: void;
+  status: 409;
+};
+
+export type replacePlatformDictionaryResponseSuccess =
+  replacePlatformDictionaryResponse200 & {
+    headers: Headers;
+  };
+export type replacePlatformDictionaryResponseError = (
+  | replacePlatformDictionaryResponse400
+  | replacePlatformDictionaryResponse401
+  | replacePlatformDictionaryResponse403
+  | replacePlatformDictionaryResponse409
+) & {
+  headers: Headers;
+};
+
+export type replacePlatformDictionaryResponse =
+  | replacePlatformDictionaryResponseSuccess
+  | replacePlatformDictionaryResponseError;
+
+export const getReplacePlatformDictionaryUrl = (dictionaryCode: string) => {
+  return `/api/platform/settings/dictionaries/${dictionaryCode}`;
+};
+
+/**
+ * @summary Replace a complete global dictionary
+ */
+export const replacePlatformDictionary = async (
+  dictionaryCode: string,
+  replacePlatformDictionaryRequest: ReplacePlatformDictionaryRequest,
+  options?: RequestInit,
+): Promise<replacePlatformDictionaryResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getReplacePlatformDictionaryUrl(dictionaryCode), {
+    ...options,
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(replacePlatformDictionaryRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: replacePlatformDictionaryResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as replacePlatformDictionaryResponse;
+};
+
+export const getReplacePlatformDictionaryMutationOptions = <
+  TError = void | AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replacePlatformDictionary>>,
+    TError,
+    ReplacePlatformDictionaryMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof replacePlatformDictionary>>,
+  TError,
+  ReplacePlatformDictionaryMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["replacePlatformDictionary"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof replacePlatformDictionary>>,
+    ReplacePlatformDictionaryMutationVariables
+  > = (props) => {
+    const { dictionaryCode, data } = props ?? {};
+
+    return replacePlatformDictionary(dictionaryCode, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReplacePlatformDictionaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof replacePlatformDictionary>>
+>;
+export type ReplacePlatformDictionaryMutationBody =
+  ReplacePlatformDictionaryRequest;
+export type ReplacePlatformDictionaryMutationError =
+  void | AuthenticationFailedResponse | CsrfFailedResponse;
+export type ReplacePlatformDictionaryMutationVariables = {
+  dictionaryCode: string;
+  data: ReplacePlatformDictionaryRequest;
+};
+
+/**
+ * @summary Replace a complete global dictionary
+ */
+export const useReplacePlatformDictionary = <
+  TError = void | AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof replacePlatformDictionary>>,
+      TError,
+      ReplacePlatformDictionaryMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof replacePlatformDictionary>>,
+  TError,
+  ReplacePlatformDictionaryMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getReplacePlatformDictionaryMutationOptions(options),
+    queryClient,
+  );
+};
+
+export type listPlatformConfigurationsResponse200 = {
+  data: Configuration[];
+  status: 200;
+};
+
+export type listPlatformConfigurationsResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type listPlatformConfigurationsResponseSuccess =
+  listPlatformConfigurationsResponse200 & {
+    headers: Headers;
+  };
+export type listPlatformConfigurationsResponseError =
+  listPlatformConfigurationsResponse401 & {
+    headers: Headers;
+  };
+
+export type listPlatformConfigurationsResponse =
+  | listPlatformConfigurationsResponseSuccess
+  | listPlatformConfigurationsResponseError;
+
+export const getListPlatformConfigurationsUrl = () => {
+  return `/api/platform/settings/configurations`;
+};
+
+/**
+ * @summary List global non-secret configuration definitions and defaults
+ */
+export const listPlatformConfigurations = async (
+  options?: RequestInit,
+): Promise<listPlatformConfigurationsResponse> => {
+  const res = await fetch(getListPlatformConfigurationsUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listPlatformConfigurationsResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listPlatformConfigurationsResponse;
+};
+
+export const getListPlatformConfigurationsQueryKey = () => {
+  return [`/api/platform/settings/configurations`] as const;
+};
+
+export const getListPlatformConfigurationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlatformConfigurations>>,
+  TError = AuthenticationFailedResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listPlatformConfigurations>>,
+      TError,
+      TData
+    >
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPlatformConfigurationsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPlatformConfigurations>>
+  > = ({ signal }) => listPlatformConfigurations({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPlatformConfigurations>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListPlatformConfigurationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlatformConfigurations>>
+>;
+export type ListPlatformConfigurationsQueryError = AuthenticationFailedResponse;
+
+export function useListPlatformConfigurations<
+  TData = Awaited<ReturnType<typeof listPlatformConfigurations>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformConfigurations>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformConfigurations>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformConfigurations>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListPlatformConfigurations<
+  TData = Awaited<ReturnType<typeof listPlatformConfigurations>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformConfigurations>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformConfigurations>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformConfigurations>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListPlatformConfigurations<
+  TData = Awaited<ReturnType<typeof listPlatformConfigurations>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformConfigurations>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List global non-secret configuration definitions and defaults
+ */
+
+export function useListPlatformConfigurations<
+  TData = Awaited<ReturnType<typeof listPlatformConfigurations>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformConfigurations>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getListPlatformConfigurationsQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type putPlatformConfigurationResponse200 = {
+  data: Configuration;
+  status: 200;
+};
+
+export type putPlatformConfigurationResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type putPlatformConfigurationResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type putPlatformConfigurationResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type putPlatformConfigurationResponse409 = {
+  data: void;
+  status: 409;
+};
+
+export type putPlatformConfigurationResponseSuccess =
+  putPlatformConfigurationResponse200 & {
+    headers: Headers;
+  };
+export type putPlatformConfigurationResponseError = (
+  | putPlatformConfigurationResponse400
+  | putPlatformConfigurationResponse401
+  | putPlatformConfigurationResponse403
+  | putPlatformConfigurationResponse409
+) & {
+  headers: Headers;
+};
+
+export type putPlatformConfigurationResponse =
+  | putPlatformConfigurationResponseSuccess
+  | putPlatformConfigurationResponseError;
+
+export const getPutPlatformConfigurationUrl = (configurationKey: string) => {
+  return `/api/platform/settings/configurations/${configurationKey}`;
+};
+
+/**
+ * @summary Create or update a global non-secret configuration
+ */
+export const putPlatformConfiguration = async (
+  configurationKey: string,
+  putPlatformConfigurationRequest: PutPlatformConfigurationRequest,
+  options?: RequestInit,
+): Promise<putPlatformConfigurationResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getPutPlatformConfigurationUrl(configurationKey), {
+    ...options,
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(putPlatformConfigurationRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: putPlatformConfigurationResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as putPlatformConfigurationResponse;
+};
+
+export const getPutPlatformConfigurationMutationOptions = <
+  TError = void | AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putPlatformConfiguration>>,
+    TError,
+    PutPlatformConfigurationMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putPlatformConfiguration>>,
+  TError,
+  PutPlatformConfigurationMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["putPlatformConfiguration"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putPlatformConfiguration>>,
+    PutPlatformConfigurationMutationVariables
+  > = (props) => {
+    const { configurationKey, data } = props ?? {};
+
+    return putPlatformConfiguration(configurationKey, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutPlatformConfigurationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putPlatformConfiguration>>
+>;
+export type PutPlatformConfigurationMutationBody =
+  PutPlatformConfigurationRequest;
+export type PutPlatformConfigurationMutationError =
+  void | AuthenticationFailedResponse | CsrfFailedResponse;
+export type PutPlatformConfigurationMutationVariables = {
+  configurationKey: string;
+  data: PutPlatformConfigurationRequest;
+};
+
+/**
+ * @summary Create or update a global non-secret configuration
+ */
+export const usePutPlatformConfiguration = <
+  TError = void | AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putPlatformConfiguration>>,
+      TError,
+      PutPlatformConfigurationMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof putPlatformConfiguration>>,
+  TError,
+  PutPlatformConfigurationMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getPutPlatformConfigurationMutationOptions(options),
     queryClient,
   );
 };
@@ -3927,6 +4807,196 @@ export const useCreateRole = <
   return useMutation(getCreateRoleMutationOptions(options), queryClient);
 };
 
+export type listEffectivePermissionsResponse200 = {
+  data: EffectivePermission[];
+  status: 200;
+};
+
+export type listEffectivePermissionsResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type listEffectivePermissionsResponseSuccess =
+  listEffectivePermissionsResponse200 & {
+    headers: Headers;
+  };
+export type listEffectivePermissionsResponseError =
+  listEffectivePermissionsResponse401 & {
+    headers: Headers;
+  };
+
+export type listEffectivePermissionsResponse =
+  | listEffectivePermissionsResponseSuccess
+  | listEffectivePermissionsResponseError;
+
+export const getListEffectivePermissionsUrl = () => {
+  return `/api/authorization/permissions`;
+};
+
+/**
+ * @summary List canonical permissions granted to the authenticated tenant actor
+ */
+export const listEffectivePermissions = async (
+  options?: RequestInit,
+): Promise<listEffectivePermissionsResponse> => {
+  const res = await fetch(getListEffectivePermissionsUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listEffectivePermissionsResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listEffectivePermissionsResponse;
+};
+
+export const getListEffectivePermissionsQueryKey = () => {
+  return [`/api/authorization/permissions`] as const;
+};
+
+export const getListEffectivePermissionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEffectivePermissions>>,
+  TError = AuthenticationFailedResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listEffectivePermissions>>,
+      TError,
+      TData
+    >
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListEffectivePermissionsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listEffectivePermissions>>
+  > = ({ signal }) => listEffectivePermissions({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEffectivePermissions>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListEffectivePermissionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEffectivePermissions>>
+>;
+export type ListEffectivePermissionsQueryError = AuthenticationFailedResponse;
+
+export function useListEffectivePermissions<
+  TData = Awaited<ReturnType<typeof listEffectivePermissions>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listEffectivePermissions>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listEffectivePermissions>>,
+          TError,
+          Awaited<ReturnType<typeof listEffectivePermissions>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListEffectivePermissions<
+  TData = Awaited<ReturnType<typeof listEffectivePermissions>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listEffectivePermissions>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listEffectivePermissions>>,
+          TError,
+          Awaited<ReturnType<typeof listEffectivePermissions>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListEffectivePermissions<
+  TData = Awaited<ReturnType<typeof listEffectivePermissions>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listEffectivePermissions>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List canonical permissions granted to the authenticated tenant actor
+ */
+
+export function useListEffectivePermissions<
+  TData = Awaited<ReturnType<typeof listEffectivePermissions>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listEffectivePermissions>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getListEffectivePermissionsQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export type getRolePolicySetResponse200 = {
   data: RolePolicySet;
   status: 200;
@@ -4686,3 +5756,1084 @@ export const useReplaceUserRoleGrants = <
     queryClient,
   );
 };
+
+export type listDictionariesResponse200 = {
+  data: Dictionary[];
+  status: 200;
+};
+
+export type listDictionariesResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type listDictionariesResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type listDictionariesResponseSuccess = listDictionariesResponse200 & {
+  headers: Headers;
+};
+export type listDictionariesResponseError = (
+  listDictionariesResponse401 | listDictionariesResponse403
+) & {
+  headers: Headers;
+};
+
+export type listDictionariesResponse =
+  listDictionariesResponseSuccess | listDictionariesResponseError;
+
+export const getListDictionariesUrl = () => {
+  return `/api/settings/dictionaries`;
+};
+
+/**
+ * @summary List effective tenant-over-global dictionaries
+ */
+export const listDictionaries = async (
+  options?: RequestInit,
+): Promise<listDictionariesResponse> => {
+  const res = await fetch(getListDictionariesUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listDictionariesResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listDictionariesResponse;
+};
+
+export const getListDictionariesQueryKey = () => {
+  return [`/api/settings/dictionaries`] as const;
+};
+
+export const getListDictionariesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDictionaries>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listDictionaries>>, TError, TData>
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListDictionariesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listDictionaries>>
+  > = ({ signal }) => listDictionaries({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDictionaries>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListDictionariesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDictionaries>>
+>;
+export type ListDictionariesQueryError =
+  AuthenticationFailedResponse | AuthorizationFailedResponse;
+
+export function useListDictionaries<
+  TData = Awaited<ReturnType<typeof listDictionaries>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDictionaries>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDictionaries>>,
+          TError,
+          Awaited<ReturnType<typeof listDictionaries>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListDictionaries<
+  TData = Awaited<ReturnType<typeof listDictionaries>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDictionaries>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDictionaries>>,
+          TError,
+          Awaited<ReturnType<typeof listDictionaries>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListDictionaries<
+  TData = Awaited<ReturnType<typeof listDictionaries>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDictionaries>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List effective tenant-over-global dictionaries
+ */
+
+export function useListDictionaries<
+  TData = Awaited<ReturnType<typeof listDictionaries>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDictionaries>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getListDictionariesQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type replaceDictionaryResponse200 = {
+  data: Dictionary;
+  status: 200;
+};
+
+export type replaceDictionaryResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type replaceDictionaryResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type replaceDictionaryResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type replaceDictionaryResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type replaceDictionaryResponse409 = {
+  data: void;
+  status: 409;
+};
+
+export type replaceDictionaryResponseSuccess = replaceDictionaryResponse200 & {
+  headers: Headers;
+};
+export type replaceDictionaryResponseError = (
+  | replaceDictionaryResponse400
+  | replaceDictionaryResponse401
+  | replaceDictionaryResponse403
+  | replaceDictionaryResponse404
+  | replaceDictionaryResponse409
+) & {
+  headers: Headers;
+};
+
+export type replaceDictionaryResponse =
+  replaceDictionaryResponseSuccess | replaceDictionaryResponseError;
+
+export const getReplaceDictionaryUrl = (dictionaryCode: string) => {
+  return `/api/settings/dictionaries/${dictionaryCode}`;
+};
+
+/**
+ * @summary Create or replace a complete tenant dictionary
+ */
+export const replaceDictionary = async (
+  dictionaryCode: string,
+  replaceDictionaryRequest: ReplaceDictionaryRequest,
+  options?: RequestInit,
+): Promise<replaceDictionaryResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getReplaceDictionaryUrl(dictionaryCode), {
+    ...options,
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(replaceDictionaryRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: replaceDictionaryResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as replaceDictionaryResponse;
+};
+
+export const getReplaceDictionaryMutationOptions = <
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replaceDictionary>>,
+    TError,
+    ReplaceDictionaryMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof replaceDictionary>>,
+  TError,
+  ReplaceDictionaryMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["replaceDictionary"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof replaceDictionary>>,
+    ReplaceDictionaryMutationVariables
+  > = (props) => {
+    const { dictionaryCode, data } = props ?? {};
+
+    return replaceDictionary(dictionaryCode, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReplaceDictionaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof replaceDictionary>>
+>;
+export type ReplaceDictionaryMutationBody = ReplaceDictionaryRequest;
+export type ReplaceDictionaryMutationError =
+  void | AuthenticationFailedResponse | AuthorizationFailedResponse;
+export type ReplaceDictionaryMutationVariables = {
+  dictionaryCode: string;
+  data: ReplaceDictionaryRequest;
+};
+
+/**
+ * @summary Create or replace a complete tenant dictionary
+ */
+export const useReplaceDictionary = <
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof replaceDictionary>>,
+      TError,
+      ReplaceDictionaryMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof replaceDictionary>>,
+  TError,
+  ReplaceDictionaryMutationVariables,
+  TContext
+> => {
+  return useMutation(getReplaceDictionaryMutationOptions(options), queryClient);
+};
+
+export type deleteDictionaryResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteDictionaryResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type deleteDictionaryResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type deleteDictionaryResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type deleteDictionaryResponse409 = {
+  data: void;
+  status: 409;
+};
+
+export type deleteDictionaryResponseSuccess = deleteDictionaryResponse204 & {
+  headers: Headers;
+};
+export type deleteDictionaryResponseError = (
+  | deleteDictionaryResponse401
+  | deleteDictionaryResponse403
+  | deleteDictionaryResponse404
+  | deleteDictionaryResponse409
+) & {
+  headers: Headers;
+};
+
+export type deleteDictionaryResponse =
+  deleteDictionaryResponseSuccess | deleteDictionaryResponseError;
+
+export const getDeleteDictionaryUrl = (
+  dictionaryCode: string,
+  params: DeleteDictionaryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/settings/dictionaries/${dictionaryCode}?${stringifiedParams}`
+    : `/api/settings/dictionaries/${dictionaryCode}`;
+};
+
+/**
+ * @summary Delete a tenant dictionary and reveal any global fallback
+ */
+export const deleteDictionary = async (
+  dictionaryCode: string,
+  params: DeleteDictionaryParams,
+  options?: RequestInit,
+): Promise<deleteDictionaryResponse> => {
+  const res = await fetch(getDeleteDictionaryUrl(dictionaryCode, params), {
+    ...options,
+    method: "DELETE",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteDictionaryResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as deleteDictionaryResponse;
+};
+
+export const getDeleteDictionaryMutationOptions = <
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteDictionary>>,
+    TError,
+    DeleteDictionaryMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteDictionary>>,
+  TError,
+  DeleteDictionaryMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["deleteDictionary"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteDictionary>>,
+    DeleteDictionaryMutationVariables
+  > = (props) => {
+    const { dictionaryCode, params } = props ?? {};
+
+    return deleteDictionary(dictionaryCode, params, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteDictionaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteDictionary>>
+>;
+
+export type DeleteDictionaryMutationError =
+  AuthenticationFailedResponse | AuthorizationFailedResponse | void;
+export type DeleteDictionaryMutationVariables = {
+  dictionaryCode: string;
+  params: DeleteDictionaryParams;
+};
+
+/**
+ * @summary Delete a tenant dictionary and reveal any global fallback
+ */
+export const useDeleteDictionary = <
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteDictionary>>,
+      TError,
+      DeleteDictionaryMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteDictionary>>,
+  TError,
+  DeleteDictionaryMutationVariables,
+  TContext
+> => {
+  return useMutation(getDeleteDictionaryMutationOptions(options), queryClient);
+};
+
+export type listConfigurationsResponse200 = {
+  data: Configuration[];
+  status: 200;
+};
+
+export type listConfigurationsResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type listConfigurationsResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type listConfigurationsResponseSuccess =
+  listConfigurationsResponse200 & {
+    headers: Headers;
+  };
+export type listConfigurationsResponseError = (
+  listConfigurationsResponse401 | listConfigurationsResponse403
+) & {
+  headers: Headers;
+};
+
+export type listConfigurationsResponse =
+  listConfigurationsResponseSuccess | listConfigurationsResponseError;
+
+export const getListConfigurationsUrl = () => {
+  return `/api/settings/configurations`;
+};
+
+/**
+ * @summary List effective non-secret configuration
+ */
+export const listConfigurations = async (
+  options?: RequestInit,
+): Promise<listConfigurationsResponse> => {
+  const res = await fetch(getListConfigurationsUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listConfigurationsResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listConfigurationsResponse;
+};
+
+export const getListConfigurationsQueryKey = () => {
+  return [`/api/settings/configurations`] as const;
+};
+
+export const getListConfigurationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listConfigurations>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listConfigurations>>,
+      TError,
+      TData
+    >
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListConfigurationsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listConfigurations>>
+  > = ({ signal }) => listConfigurations({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listConfigurations>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListConfigurationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listConfigurations>>
+>;
+export type ListConfigurationsQueryError =
+  AuthenticationFailedResponse | AuthorizationFailedResponse;
+
+export function useListConfigurations<
+  TData = Awaited<ReturnType<typeof listConfigurations>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConfigurations>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listConfigurations>>,
+          TError,
+          Awaited<ReturnType<typeof listConfigurations>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListConfigurations<
+  TData = Awaited<ReturnType<typeof listConfigurations>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConfigurations>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listConfigurations>>,
+          TError,
+          Awaited<ReturnType<typeof listConfigurations>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListConfigurations<
+  TData = Awaited<ReturnType<typeof listConfigurations>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConfigurations>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List effective non-secret configuration
+ */
+
+export function useListConfigurations<
+  TData = Awaited<ReturnType<typeof listConfigurations>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConfigurations>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getListConfigurationsQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type putConfigurationResponse200 = {
+  data: Configuration;
+  status: 200;
+};
+
+export type putConfigurationResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type putConfigurationResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type putConfigurationResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type putConfigurationResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type putConfigurationResponse409 = {
+  data: void;
+  status: 409;
+};
+
+export type putConfigurationResponseSuccess = putConfigurationResponse200 & {
+  headers: Headers;
+};
+export type putConfigurationResponseError = (
+  | putConfigurationResponse400
+  | putConfigurationResponse401
+  | putConfigurationResponse403
+  | putConfigurationResponse404
+  | putConfigurationResponse409
+) & {
+  headers: Headers;
+};
+
+export type putConfigurationResponse =
+  putConfigurationResponseSuccess | putConfigurationResponseError;
+
+export const getPutConfigurationUrl = (configurationKey: string) => {
+  return `/api/settings/configurations/${configurationKey}`;
+};
+
+/**
+ * @summary Create or replace an eligible tenant configuration override
+ */
+export const putConfiguration = async (
+  configurationKey: string,
+  putConfigurationRequest: PutConfigurationRequest,
+  options?: RequestInit,
+): Promise<putConfigurationResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getPutConfigurationUrl(configurationKey), {
+    ...options,
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(putConfigurationRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: putConfigurationResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as putConfigurationResponse;
+};
+
+export const getPutConfigurationMutationOptions = <
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putConfiguration>>,
+    TError,
+    PutConfigurationMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putConfiguration>>,
+  TError,
+  PutConfigurationMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["putConfiguration"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putConfiguration>>,
+    PutConfigurationMutationVariables
+  > = (props) => {
+    const { configurationKey, data } = props ?? {};
+
+    return putConfiguration(configurationKey, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutConfigurationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putConfiguration>>
+>;
+export type PutConfigurationMutationBody = PutConfigurationRequest;
+export type PutConfigurationMutationError =
+  void | AuthenticationFailedResponse | AuthorizationFailedResponse;
+export type PutConfigurationMutationVariables = {
+  configurationKey: string;
+  data: PutConfigurationRequest;
+};
+
+/**
+ * @summary Create or replace an eligible tenant configuration override
+ */
+export const usePutConfiguration = <
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putConfiguration>>,
+      TError,
+      PutConfigurationMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof putConfiguration>>,
+  TError,
+  PutConfigurationMutationVariables,
+  TContext
+> => {
+  return useMutation(getPutConfigurationMutationOptions(options), queryClient);
+};
+
+export type listAuditEventsResponse200 = {
+  data: AuditEvent[];
+  status: 200;
+};
+
+export type listAuditEventsResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type listAuditEventsResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type listAuditEventsResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type listAuditEventsResponseSuccess = listAuditEventsResponse200 & {
+  headers: Headers;
+};
+export type listAuditEventsResponseError = (
+  | listAuditEventsResponse400
+  | listAuditEventsResponse401
+  | listAuditEventsResponse403
+) & {
+  headers: Headers;
+};
+
+export type listAuditEventsResponse =
+  listAuditEventsResponseSuccess | listAuditEventsResponseError;
+
+export const getListAuditEventsUrl = (params?: ListAuditEventsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/audit/events?${stringifiedParams}`
+    : `/api/audit/events`;
+};
+
+/**
+ * @summary List redacted audit events in the authenticated tenant
+ */
+export const listAuditEvents = async (
+  params?: ListAuditEventsParams,
+  options?: RequestInit,
+): Promise<listAuditEventsResponse> => {
+  const res = await fetch(getListAuditEventsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listAuditEventsResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listAuditEventsResponse;
+};
+
+export const getListAuditEventsQueryKey = (params?: ListAuditEventsParams) => {
+  return [`/api/audit/events`, ...(params ? [params] : [])] as const;
+};
+
+export const getListAuditEventsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAuditEvents>>,
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  params?: ListAuditEventsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAuditEvents>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAuditEventsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAuditEvents>>> = ({
+    signal,
+  }) => listAuditEvents(params, { signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAuditEvents>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListAuditEventsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAuditEvents>>
+>;
+export type ListAuditEventsQueryError =
+  void | AuthenticationFailedResponse | AuthorizationFailedResponse;
+
+export function useListAuditEvents<
+  TData = Awaited<ReturnType<typeof listAuditEvents>>,
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  params: undefined | ListAuditEventsParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAuditEvents>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAuditEvents>>,
+          TError,
+          Awaited<ReturnType<typeof listAuditEvents>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListAuditEvents<
+  TData = Awaited<ReturnType<typeof listAuditEvents>>,
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  params?: ListAuditEventsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAuditEvents>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAuditEvents>>,
+          TError,
+          Awaited<ReturnType<typeof listAuditEvents>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListAuditEvents<
+  TData = Awaited<ReturnType<typeof listAuditEvents>>,
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  params?: ListAuditEventsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAuditEvents>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List redacted audit events in the authenticated tenant
+ */
+
+export function useListAuditEvents<
+  TData = Awaited<ReturnType<typeof listAuditEvents>>,
+  TError = void | AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  params?: ListAuditEventsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAuditEvents>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getListAuditEventsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

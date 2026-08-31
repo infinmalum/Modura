@@ -21,6 +21,9 @@ type deniedService struct{}
 func (deniedService) Authorize(context.Context, identity.Actor, authorization.Permission) error {
 	return authorization.ErrDenied
 }
+func (deniedService) EffectivePermissions(context.Context, identity.Actor) ([]authorization.Permission, error) {
+	return nil, authorization.ErrDenied
+}
 func (deniedService) ListRoles(context.Context, identity.Actor) ([]authorization.RoleView, error) {
 	panic("authorization denial must stop delivery")
 }

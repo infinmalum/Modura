@@ -25,6 +25,8 @@ import (
 	"github.com/modura-dev/modura/backend/internal/modules/platformtenant"
 	platformtenantpostgres "github.com/modura-dev/modura/backend/internal/modules/platformtenant/postgres"
 	"github.com/modura-dev/modura/backend/internal/modules/provisioning"
+	"github.com/modura-dev/modura/backend/internal/modules/settings"
+	settingspostgres "github.com/modura-dev/modura/backend/internal/modules/settings/postgres"
 	"github.com/modura-dev/modura/backend/internal/platform/config"
 	"github.com/modura-dev/modura/backend/internal/platform/database"
 	"github.com/modura-dev/modura/backend/internal/platform/httpserver"
@@ -74,7 +76,8 @@ func main() {
 		logger.Error("configure authorization service", "error", err)
 		os.Exit(1)
 	}
-	auditService, err := audit.NewService(auditpostgres.New(), func(now time.Time) (string, error) {
+	auditStore := auditpostgres.New(pool)
+	auditService, err := audit.NewService(auditStore, func(now time.Time) (string, error) {
 		id, idErr := identifier.NewUUIDv7(now, nil)
 		return string(id), idErr
 	})
@@ -82,11 +85,23 @@ func main() {
 		logger.Error("configure audit service", "error", err)
 		os.Exit(1)
 	}
+	if err := auditService.EnableQueries(auditStore); err != nil {
+		logger.Error("configure audit queries", "error", err)
+		os.Exit(1)
+	}
 	if err := authorizationService.EnableManagement(authorizationpostgres.New(pool), database.NewTransactor(pool), auditService, time.Now, func(now time.Time) (string, error) {
 		id, idErr := identifier.NewUUIDv7(now, nil)
 		return string(id), idErr
 	}); err != nil {
 		logger.Error("configure authorization management", "error", err)
+		os.Exit(1)
+	}
+	settingsService, err := settings.NewService(settingspostgres.New(pool), database.NewTransactor(pool), auditService, time.Now, func(now time.Time) (string, error) {
+		id, idErr := identifier.NewUUIDv7(now, nil)
+		return string(id), idErr
+	})
+	if err != nil {
+		logger.Error("configure settings service", "error", err)
 		os.Exit(1)
 	}
 	organizationStore := organizationpostgres.New(pool)
@@ -128,7 +143,7 @@ func main() {
 		logger.Error("configure tenant provisioning service", "error", err)
 		os.Exit(1)
 	}
-	server := httpserver.New(cfg.HTTP, logger, httpserver.Dependencies{Identity: identityService, Authorizer: authorizationService, Authorization: authorizationService, Organization: organizationService, PlatformAdmin: platformAdminService, PlatformTenant: platformTenantService, Provisioning: provisioningService, Ready: pool.Ping})
+	server := httpserver.New(cfg.HTTP, logger, httpserver.Dependencies{Identity: identityService, Authorizer: authorizationService, Authorization: authorizationService, Organization: organizationService, PlatformAdmin: platformAdminService, PlatformTenant: platformTenantService, Provisioning: provisioningService, Settings: settingsService, PlatformSettings: settingsService, Audit: auditService, Ready: pool.Ping})
 
 	errCh := make(chan error, 1)
 	go func() {

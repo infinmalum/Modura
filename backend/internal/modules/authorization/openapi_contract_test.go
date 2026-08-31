@@ -19,7 +19,7 @@ func TestTenantBearerOperationsDeclareKnownPermission(t *testing.T) {
 	}
 	paths := root["paths"].(map[string]any)
 	for path, rawPath := range paths {
-		if strings.HasPrefix(path, "/auth/") {
+		if strings.HasPrefix(path, "/auth/") || path == "/authorization/permissions" {
 			continue
 		}
 		operations := rawPath.(map[string]any)

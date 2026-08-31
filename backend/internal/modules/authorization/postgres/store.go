@@ -94,6 +94,9 @@ func tenantAdministratorPermissions() []authorization.Permission {
 		{authorization.ResourceRoles, []authorization.Action{authorization.ActionRead, authorization.ActionCreate, authorization.ActionUpdate, authorization.ActionDelete}},
 		{authorization.ResourcePolicies, []authorization.Action{authorization.ActionRead, authorization.ActionUpdate}},
 		{authorization.ResourceUserRoles, []authorization.Action{authorization.ActionRead, authorization.ActionUpdate}},
+		{authorization.ResourceDictionaries, []authorization.Action{authorization.ActionRead, authorization.ActionCreate, authorization.ActionUpdate, authorization.ActionDelete}},
+		{authorization.ResourceConfigurations, []authorization.Action{authorization.ActionRead, authorization.ActionUpdate}},
+		{authorization.ResourceAuditEvents, []authorization.Action{authorization.ActionRead}},
 	} {
 		for _, action := range item.actions {
 			permissions = append(permissions, authorization.Permission{Resource: item.resource, Action: action})

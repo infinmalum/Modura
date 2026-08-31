@@ -3,7 +3,7 @@ import { App, Button, Card, Flex, Space, Tag, Typography } from "antd";
 export function Workspace() {
   const { message } = App.useApp();
   return (
-    <main className="workspace">
+    <section className="workspace">
       <section className="workspace__hero">
         <Space direction="vertical" size="large">
           <Tag color="geekblue">Agent-native enterprise framework</Tag>
@@ -30,6 +30,6 @@ export function Workspace() {
           为可预测的 Agent 协作和快速交付而设计。
         </Card>
       </Flex>
-    </main>
+    </section>
   );
 }
