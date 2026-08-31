@@ -30,12 +30,13 @@ type Database struct{ URL string }
 
 // Auth contains authentication and session security configuration.
 type Auth struct {
-	Issuer          string
-	Audience        string
-	SigningKeyID    string
-	SigningKey      []byte
-	AccessLifetime  time.Duration
-	RefreshLifetime time.Duration
+	Issuer           string
+	Audience         string
+	PlatformAudience string
+	SigningKeyID     string
+	SigningKey       []byte
+	AccessLifetime   time.Duration
+	RefreshLifetime  time.Duration
 }
 
 // HTTP contains HTTP server configuration.
@@ -80,10 +81,11 @@ func FromEnv() (Config, error) {
 		return Config{}, fmt.Errorf("MODURA_AUTH_SIGNING_KEY must contain at least 32 bytes")
 	}
 	auth := Auth{
-		Issuer:       envOrDefault("MODURA_AUTH_ISSUER", "modura"),
-		Audience:     envOrDefault("MODURA_AUTH_AUDIENCE", "modura-admin"),
-		SigningKeyID: envOrDefault("MODURA_AUTH_SIGNING_KEY_ID", "primary"),
-		SigningKey:   signingKey,
+		Issuer:           envOrDefault("MODURA_AUTH_ISSUER", "modura"),
+		Audience:         envOrDefault("MODURA_AUTH_AUDIENCE", "modura-admin"),
+		PlatformAudience: envOrDefault("MODURA_PLATFORM_AUTH_AUDIENCE", "modura-platform"),
+		SigningKeyID:     envOrDefault("MODURA_AUTH_SIGNING_KEY_ID", "primary"),
+		SigningKey:       signingKey,
 	}
 	if auth.AccessLifetime, err = duration("MODURA_AUTH_ACCESS_LIFETIME", 5*time.Minute); err != nil {
 		return Config{}, err

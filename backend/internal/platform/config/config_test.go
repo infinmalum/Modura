@@ -20,6 +20,9 @@ func TestFromEnvUsesDefaults(t *testing.T) {
 	if cfg.HTTP.ReadTimeout != defaultReadTimeout {
 		t.Fatalf("ReadTimeout = %v, want %v", cfg.HTTP.ReadTimeout, defaultReadTimeout)
 	}
+	if cfg.Auth.PlatformAudience != "modura-platform" {
+		t.Fatalf("PlatformAudience = %q", cfg.Auth.PlatformAudience)
+	}
 }
 
 func TestFromEnvRejectsInvalidDuration(t *testing.T) {

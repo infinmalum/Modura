@@ -6,9 +6,11 @@ package generated
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for AccessTokenResponseTokenType.
@@ -41,6 +43,45 @@ func (e HealthStatusStatus) Valid() bool {
 	}
 }
 
+// Defines values for PlatformTenantStatus.
+const (
+	PlatformTenantStatusActive       PlatformTenantStatus = "active"
+	PlatformTenantStatusProvisioning PlatformTenantStatus = "provisioning"
+	PlatformTenantStatusSuspended    PlatformTenantStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the PlatformTenantStatus enum.
+func (e PlatformTenantStatus) Valid() bool {
+	switch e {
+	case PlatformTenantStatusActive:
+		return true
+	case PlatformTenantStatusProvisioning:
+		return true
+	case PlatformTenantStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PositionStatus.
+const (
+	PositionStatusActive   PositionStatus = "active"
+	PositionStatusDisabled PositionStatus = "disabled"
+)
+
+// Valid indicates whether the value is a known member of the PositionStatus enum.
+func (e PositionStatus) Valid() bool {
+	switch e {
+	case PositionStatusActive:
+		return true
+	case PositionStatusDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
 // AccessTokenResponse defines model for AccessTokenResponse.
 type AccessTokenResponse struct {
 	AccessToken string                       `json:"accessToken"`
@@ -52,10 +93,36 @@ type AccessTokenResponse struct {
 // AccessTokenResponseTokenType defines model for AccessTokenResponse.TokenType.
 type AccessTokenResponseTokenType string
 
+// AssignUserOrganizationRequest defines model for AssignUserOrganizationRequest.
+type AssignUserOrganizationRequest struct {
+	DepartmentId openapi_types.UUID  `json:"departmentId"`
+	PositionId   *openapi_types.UUID `json:"positionId,omitempty"`
+}
+
 // ChangePasswordRequest defines model for ChangePasswordRequest.
 type ChangePasswordRequest struct {
 	CurrentPassword *string `json:"currentPassword,omitempty"`
 	NewPassword     *string `json:"newPassword,omitempty"`
+}
+
+// CreateDepartmentRequest defines model for CreateDepartmentRequest.
+type CreateDepartmentRequest struct {
+	Name      string             `json:"name"`
+	ParentId  openapi_types.UUID `json:"parentId"`
+	SortOrder int                `json:"sortOrder"`
+}
+
+// CreatePositionRequest defines model for CreatePositionRequest.
+type CreatePositionRequest struct {
+	Name string `json:"name"`
+}
+
+// Department defines model for Department.
+type Department struct {
+	Id        openapi_types.UUID  `json:"id"`
+	Name      string              `json:"name"`
+	ParentId  *openapi_types.UUID `json:"parentId,omitempty"`
+	SortOrder int                 `json:"sortOrder"`
 }
 
 // HealthStatus defines model for HealthStatus.
@@ -66,6 +133,11 @@ type HealthStatus struct {
 // HealthStatusStatus defines model for HealthStatus.Status.
 type HealthStatusStatus string
 
+// IdentifierResponse defines model for IdentifierResponse.
+type IdentifierResponse struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Login    string  `json:"login"`
@@ -73,11 +145,45 @@ type LoginRequest struct {
 	Tenant   string  `json:"tenant"`
 }
 
+// MoveDepartmentRequest defines model for MoveDepartmentRequest.
+type MoveDepartmentRequest struct {
+	ParentId openapi_types.UUID `json:"parentId"`
+}
+
 // OneTimeCredentialRequest defines model for OneTimeCredentialRequest.
 type OneTimeCredentialRequest struct {
 	NewPassword *string `json:"newPassword,omitempty"`
 	Token       *string `json:"token,omitempty"`
 }
+
+// PlatformLoginRequest defines model for PlatformLoginRequest.
+type PlatformLoginRequest struct {
+	Password *string `json:"password,omitempty"`
+	Username string  `json:"username"`
+}
+
+// PlatformTenant defines model for PlatformTenant.
+type PlatformTenant struct {
+	CreatedAt   time.Time            `json:"createdAt"`
+	DisplayName string               `json:"displayName"`
+	Id          openapi_types.UUID   `json:"id"`
+	Slug        string               `json:"slug"`
+	Status      PlatformTenantStatus `json:"status"`
+	UpdatedAt   time.Time            `json:"updatedAt"`
+}
+
+// PlatformTenantStatus defines model for PlatformTenant.Status.
+type PlatformTenantStatus string
+
+// Position defines model for Position.
+type Position struct {
+	Id     openapi_types.UUID `json:"id"`
+	Name   string             `json:"name"`
+	Status PositionStatus     `json:"status"`
+}
+
+// PositionStatus defines model for Position.Status.
+type PositionStatus string
 
 // Problem defines model for Problem.
 type Problem struct {
@@ -88,11 +194,28 @@ type Problem struct {
 	Type    string  `json:"type"`
 }
 
+// TenantLifecycleRequest defines model for TenantLifecycleRequest.
+type TenantLifecycleRequest struct {
+	Reason string `json:"reason"`
+}
+
 // CsrfToken defines model for CsrfToken.
 type CsrfToken = string
 
+// DepartmentId defines model for DepartmentId.
+type DepartmentId = openapi_types.UUID
+
+// TenantId defines model for TenantId.
+type TenantId = openapi_types.UUID
+
+// UserId defines model for UserId.
+type UserId = openapi_types.UUID
+
 // AuthenticationFailed defines model for AuthenticationFailed.
 type AuthenticationFailed = Problem
+
+// AuthorizationFailed defines model for AuthorizationFailed.
+type AuthorizationFailed = Problem
 
 // CsrfFailed defines model for CsrfFailed.
 type CsrfFailed = Problem
@@ -117,6 +240,46 @@ type RefreshParams struct {
 	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
 }
 
+// CreateDepartmentParams defines parameters for CreateDepartment.
+type CreateDepartmentParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// DeleteDepartmentParams defines parameters for DeleteDepartment.
+type DeleteDepartmentParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// MoveDepartmentParams defines parameters for MoveDepartment.
+type MoveDepartmentParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// CreatePositionParams defines parameters for CreatePosition.
+type CreatePositionParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// AssignUserOrganizationParams defines parameters for AssignUserOrganization.
+type AssignUserOrganizationParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// PlatformRefreshParams defines parameters for PlatformRefresh.
+type PlatformRefreshParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// ReactivatePlatformTenantParams defines parameters for ReactivatePlatformTenant.
+type ReactivatePlatformTenantParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// SuspendPlatformTenantParams defines parameters for SuspendPlatformTenant.
+type SuspendPlatformTenantParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
 // AcceptInvitationJSONRequestBody defines body for AcceptInvitation for application/json ContentType.
 type AcceptInvitationJSONRequestBody = OneTimeCredentialRequest
 
@@ -128,6 +291,27 @@ type ChangePasswordJSONRequestBody = ChangePasswordRequest
 
 // ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
 type ResetPasswordJSONRequestBody = OneTimeCredentialRequest
+
+// CreateDepartmentJSONRequestBody defines body for CreateDepartment for application/json ContentType.
+type CreateDepartmentJSONRequestBody = CreateDepartmentRequest
+
+// MoveDepartmentJSONRequestBody defines body for MoveDepartment for application/json ContentType.
+type MoveDepartmentJSONRequestBody = MoveDepartmentRequest
+
+// CreatePositionJSONRequestBody defines body for CreatePosition for application/json ContentType.
+type CreatePositionJSONRequestBody = CreatePositionRequest
+
+// AssignUserOrganizationJSONRequestBody defines body for AssignUserOrganization for application/json ContentType.
+type AssignUserOrganizationJSONRequestBody = AssignUserOrganizationRequest
+
+// PlatformLoginJSONRequestBody defines body for PlatformLogin for application/json ContentType.
+type PlatformLoginJSONRequestBody = PlatformLoginRequest
+
+// ReactivatePlatformTenantJSONRequestBody defines body for ReactivatePlatformTenant for application/json ContentType.
+type ReactivatePlatformTenantJSONRequestBody = TenantLifecycleRequest
+
+// SuspendPlatformTenantJSONRequestBody defines body for SuspendPlatformTenant for application/json ContentType.
+type SuspendPlatformTenantJSONRequestBody = TenantLifecycleRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -155,6 +339,42 @@ type ServerInterface interface {
 	// GetLiveness Report whether the process is alive
 	// (GET /livez)
 	GetLiveness(c *gin.Context)
+	// ListDepartments List departments in the authenticated tenant
+	// (GET /organization/departments)
+	ListDepartments(c *gin.Context)
+	// CreateDepartment Create a department in the authenticated tenant
+	// (POST /organization/departments)
+	CreateDepartment(c *gin.Context, params CreateDepartmentParams)
+	// DeleteDepartment Delete an unused non-root department
+	// (DELETE /organization/departments/{departmentId})
+	DeleteDepartment(c *gin.Context, departmentId DepartmentId, params DeleteDepartmentParams)
+	// MoveDepartment Move a department under another parent
+	// (PATCH /organization/departments/{departmentId})
+	MoveDepartment(c *gin.Context, departmentId DepartmentId, params MoveDepartmentParams)
+	// ListPositions List positions in the authenticated tenant
+	// (GET /organization/positions)
+	ListPositions(c *gin.Context)
+	// CreatePosition Create a position in the authenticated tenant
+	// (POST /organization/positions)
+	CreatePosition(c *gin.Context, params CreatePositionParams)
+	// AssignUserOrganization Set a user's primary department and optional position
+	// (PUT /organization/users/{userId}/assignment)
+	AssignUserOrganization(c *gin.Context, userId UserId, params AssignUserOrganizationParams)
+	// PlatformLogin Establish a global platform-administrator session
+	// (POST /platform/auth/login)
+	PlatformLogin(c *gin.Context)
+	// PlatformRefresh Rotate a platform-administrator refresh secret
+	// (POST /platform/auth/refresh)
+	PlatformRefresh(c *gin.Context, params PlatformRefreshParams)
+	// ListPlatformTenants List tenants as a global platform administrator
+	// (GET /platform/tenants)
+	ListPlatformTenants(c *gin.Context)
+	// ReactivatePlatformTenant Reactivate a suspended tenant with auditable reason
+	// (POST /platform/tenants/{tenantId}/reactivate)
+	ReactivatePlatformTenant(c *gin.Context, tenantId TenantId, params ReactivatePlatformTenantParams)
+	// SuspendPlatformTenant Suspend an active tenant with auditable reason
+	// (POST /platform/tenants/{tenantId}/suspend)
+	SuspendPlatformTenant(c *gin.Context, tenantId TenantId, params SuspendPlatformTenantParams)
 	// GetReadiness Report whether the process can serve traffic
 	// (GET /readyz)
 	GetReadiness(c *gin.Context)
@@ -393,6 +613,447 @@ func (siw *ServerInterfaceWrapper) GetLiveness(c *gin.Context) {
 	siw.Handler.GetLiveness(c)
 }
 
+// ListDepartments operation middleware
+func (siw *ServerInterfaceWrapper) ListDepartments(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListDepartments(c)
+}
+
+// CreateDepartment operation middleware
+func (siw *ServerInterfaceWrapper) CreateDepartment(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateDepartmentParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateDepartment(c, params)
+}
+
+// DeleteDepartment operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDepartment(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "departmentId" -------------
+	var departmentId DepartmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "departmentId", c.Param("departmentId"), &departmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departmentId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteDepartmentParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteDepartment(c, departmentId, params)
+}
+
+// MoveDepartment operation middleware
+func (siw *ServerInterfaceWrapper) MoveDepartment(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "departmentId" -------------
+	var departmentId DepartmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "departmentId", c.Param("departmentId"), &departmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departmentId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params MoveDepartmentParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MoveDepartment(c, departmentId, params)
+}
+
+// ListPositions operation middleware
+func (siw *ServerInterfaceWrapper) ListPositions(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListPositions(c)
+}
+
+// CreatePosition operation middleware
+func (siw *ServerInterfaceWrapper) CreatePosition(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreatePositionParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreatePosition(c, params)
+}
+
+// AssignUserOrganization operation middleware
+func (siw *ServerInterfaceWrapper) AssignUserOrganization(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AssignUserOrganizationParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AssignUserOrganization(c, userId, params)
+}
+
+// PlatformLogin operation middleware
+func (siw *ServerInterfaceWrapper) PlatformLogin(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PlatformLogin(c)
+}
+
+// PlatformRefresh operation middleware
+func (siw *ServerInterfaceWrapper) PlatformRefresh(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PlatformRefreshParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PlatformRefresh(c, params)
+}
+
+// ListPlatformTenants operation middleware
+func (siw *ServerInterfaceWrapper) ListPlatformTenants(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListPlatformTenants(c)
+}
+
+// ReactivatePlatformTenant operation middleware
+func (siw *ServerInterfaceWrapper) ReactivatePlatformTenant(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", c.Param("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter tenantId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReactivatePlatformTenantParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReactivatePlatformTenant(c, tenantId, params)
+}
+
+// SuspendPlatformTenant operation middleware
+func (siw *ServerInterfaceWrapper) SuspendPlatformTenant(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", c.Param("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter tenantId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SuspendPlatformTenantParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SuspendPlatformTenant(c, tenantId, params)
+}
+
 // GetReadiness operation middleware
 func (siw *ServerInterfaceWrapper) GetReadiness(c *gin.Context) {
 
@@ -436,10 +1097,22 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/livez", wrapper.GetLiveness)
 	router.GET(options.BaseURL+"/readyz", wrapper.GetReadiness)
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
+	router.POST(options.BaseURL+"/platform/auth/login", wrapper.PlatformLogin)
+	router.POST(options.BaseURL+"/platform/auth/refresh", wrapper.PlatformRefresh)
+	router.GET(options.BaseURL+"/platform/tenants", wrapper.ListPlatformTenants)
+	router.POST(options.BaseURL+"/platform/tenants/:tenantId/suspend", wrapper.SuspendPlatformTenant)
+	router.POST(options.BaseURL+"/platform/tenants/:tenantId/reactivate", wrapper.ReactivatePlatformTenant)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.Refresh)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.Logout)
 	router.POST(options.BaseURL+"/auth/logout-all", wrapper.LogoutAll)
 	router.PUT(options.BaseURL+"/auth/password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/password-resets", wrapper.ResetPassword)
 	router.POST(options.BaseURL+"/auth/invitations/accept", wrapper.AcceptInvitation)
+	router.GET(options.BaseURL+"/organization/departments", wrapper.ListDepartments)
+	router.POST(options.BaseURL+"/organization/departments", wrapper.CreateDepartment)
+	router.DELETE(options.BaseURL+"/organization/departments/:departmentId", wrapper.DeleteDepartment)
+	router.PATCH(options.BaseURL+"/organization/departments/:departmentId", wrapper.MoveDepartment)
+	router.GET(options.BaseURL+"/organization/positions", wrapper.ListPositions)
+	router.POST(options.BaseURL+"/organization/positions", wrapper.CreatePosition)
+	router.PUT(options.BaseURL+"/organization/users/:userId/assignment", wrapper.AssignUserOrganization)
 }

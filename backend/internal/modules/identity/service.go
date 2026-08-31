@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Account is the credential state needed to establish a session.
@@ -49,6 +51,44 @@ type Store interface {
 	ConsumeOneTimeToken(context.Context, [32]byte, OneTimePurpose, string, time.Time) error
 	DisableAccount(context.Context, TenantID, UserID, string, time.Time) error
 	UnlockAccount(context.Context, TenantID, UserID, time.Time) error
+	ProvisionTenant(context.Context, pgx.Tx, TenantProvisioning) error
+	ActivateTenant(context.Context, pgx.Tx, TenantID, time.Time) error
+}
+
+// TenantProvisioning contains identity-owned state for atomic tenant setup.
+type TenantProvisioning struct {
+	TenantID           TenantID
+	Slug               string
+	DisplayName        string
+	AdministratorID    UserID
+	Username           string
+	NormalizedUsername string
+	Email              string
+	NormalizedEmail    string
+	InvitationID       string
+	InvitationHash     [32]byte
+	CreatedAt          time.Time
+	InvitationExpires  time.Time
+}
+
+// ProvisionTenant creates a provisioning tenant, its invited administrator,
+// and the invitation token inside the caller-owned transaction.
+func (s *Service) ProvisionTenant(ctx context.Context, tx pgx.Tx, provisioning TenantProvisioning) error {
+	if tx == nil || provisioning.TenantID == "" || provisioning.AdministratorID == "" || provisioning.Slug == "" || provisioning.NormalizedUsername == "" {
+		return fmt.Errorf("invalid tenant provisioning identity")
+	}
+	if err := s.store.ProvisionTenant(ctx, tx, provisioning); err != nil {
+		return fmt.Errorf("provision tenant identity: %w", err)
+	}
+	return nil
+}
+
+// ActivateTenant marks a fully provisioned tenant active in the shared transaction.
+func (s *Service) ActivateTenant(ctx context.Context, tx pgx.Tx, tenantID TenantID, now time.Time) error {
+	if err := s.store.ActivateTenant(ctx, tx, tenantID, now); err != nil {
+		return fmt.Errorf("activate tenant: %w", err)
+	}
+	return nil
 }
 
 // DisableAccount disables a tenant-owned user and invalidates every session.

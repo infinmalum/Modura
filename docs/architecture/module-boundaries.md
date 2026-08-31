@@ -8,6 +8,8 @@ Modura is a modular monolith first. Modules are cohesive business ownership boun
 
 Business modules live at `backend/internal/modules/<module>`. Each module exposes a deliberately small application-level API to the composition root and permitted consumers. Domain, SQL, generated queries, and transport adapters remain private to the owner.
 
+HTTP adapters live with their owning module under `backend/internal/modules/<module>/transport/http`. They may depend on Gin, generated contract types, and small application APIs, while domain/application code remains transport-independent. `backend/internal/api/handler` only composes these adapters into the single generated `ServerInterface`; it must not accumulate module business handling. Shared cookie, CSRF, bearer, and problem-response mechanics live under `backend/internal/api/transport` and contain no business decisions.
+
 `backend/internal/platform` contains technical capabilities such as database connection setup, telemetry, clocks, and identifier generation. It must not become a business-domain dumping ground.
 
 ## Ownership rules

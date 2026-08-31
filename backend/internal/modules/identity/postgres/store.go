@@ -378,6 +378,45 @@ func (s *Store) UnlockAccount(ctx context.Context, tenantID identity.TenantID, u
 	return identity.ErrInactiveUser
 }
 
+// ProvisionTenant creates identity-owned provisioning records in a workflow transaction.
+func (s *Store) ProvisionTenant(ctx context.Context, tx pgx.Tx, provisioning identity.TenantProvisioning) error {
+	if _, err := tx.Exec(ctx, `
+INSERT INTO modura.tenants (id, slug, display_name, status, created_at, updated_at)
+VALUES ($1, $2, $3, 'provisioning', $4, $4)`, provisioning.TenantID, provisioning.Slug, provisioning.DisplayName, provisioning.CreatedAt); err != nil {
+		return fmt.Errorf("insert provisioning tenant: %w", err)
+	}
+	var email any
+	var normalizedEmail any
+	if provisioning.Email != "" {
+		email, normalizedEmail = provisioning.Email, provisioning.NormalizedEmail
+	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO modura.users
+    (id, tenant_id, username, normalized_username, email, normalized_email, status, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, 'invited', $7, $7)`, provisioning.AdministratorID, provisioning.TenantID, provisioning.Username, provisioning.NormalizedUsername, email, normalizedEmail, provisioning.CreatedAt); err != nil {
+		return fmt.Errorf("insert invited administrator: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO modura.auth_one_time_tokens
+    (id, tenant_id, user_id, purpose, token_hash, created_at, expires_at)
+VALUES ($1, $2, $3, 'invitation', $4, $5, $6)`, provisioning.InvitationID, provisioning.TenantID, provisioning.AdministratorID, provisioning.InvitationHash[:], provisioning.CreatedAt, provisioning.InvitationExpires); err != nil {
+		return fmt.Errorf("insert administrator invitation: %w", err)
+	}
+	return nil
+}
+
+// ActivateTenant transitions only a provisioning tenant to active.
+func (s *Store) ActivateTenant(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, now time.Time) error {
+	command, err := tx.Exec(ctx, `UPDATE modura.tenants SET status = 'active', updated_at = $2 WHERE id = $1 AND status = 'provisioning'`, tenantID, now)
+	if err != nil {
+		return fmt.Errorf("update tenant active: %w", err)
+	}
+	if command.RowsAffected() != 1 {
+		return identity.ErrInactiveTenant
+	}
+	return nil
+}
+
 func (s *Store) revoke(ctx context.Context, query string, tenantID identity.TenantID, userID identity.UserID, sessionID identity.SessionID, now time.Time, reason string) error {
 	_, err := s.pool.Exec(ctx, query, tenantID, userID, sessionID, now, reason)
 	if err != nil {

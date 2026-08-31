@@ -30,7 +30,34 @@ Planning basis: Project Constitution, executable agent contract, and SpringBlade
   configured. Tokens MUST NOT be returned from public request endpoints as a
   substitute. This delivery gap is tracked for the Stage 2 provisioning and
   Stage 4 notification/admin workflow and is not represented as working UI.
-- Stages 2–5: pending.
+- Stage 2: in progress. Organization cardinality and provisioning idempotency
+  decisions are accepted. Department, position, and single-primary-department
+  schema/application foundations are implemented with real-PostgreSQL tests
+  for root, sibling uniqueness, cycle, delete, assignment, and cross-tenant
+  invariants. Atomic tenant provisioning now creates and activates the tenant,
+  root department, invited administrator, primary assignment, reserved
+  tenant-administrator role/grant, and invitation token in one transaction.
+  Real-PostgreSQL tests cover same-request retry, conflicting key reuse, and
+  rollback without partial tenants. A stable resource/action registry and
+  server-side reserved tenant-admin check now protect department list/create/
+  move/delete HTTP APIs; requests derive tenant scope only from the validated
+  actor and writes also require CSRF. Position list/create and desired-state
+  user primary-department/optional-position assignment APIs use the same
+  boundary, with real-PostgreSQL list and cross-tenant assignment tests. A
+  distinct global human platform-administrator model now has one-time
+  bootstrap, Argon2id login, separate token audience/principal type,
+  server-side refresh rotation/replay revocation, and explicit rejection of
+  tenant access tokens. The local, stdin-secret bootstrap command and separate
+  platform login/refresh HTTP boundary are implemented with distinct cookies.
+  Platform tenant listing plus suspend/reactivate endpoints now require a
+  verified platform principal, platform CSRF cookies, and an explicit reason;
+  lifecycle state and durable audit evidence commit in one PostgreSQL
+  transaction with request correlation. Tenant provisioning now also requires
+  a verified platform actor, explicit reason, and request correlation, and its
+  successful audit evidence commits in the same idempotent transaction.
+  Platform provisioning HTTP delivery and audit coverage for the remaining
+  organization writes remain.
+- Stages 3–5: pending.
 
 ## Goal
 

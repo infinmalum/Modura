@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type memoryStore struct {
@@ -130,7 +132,9 @@ func (m *memoryStore) UnlockAccount(_ context.Context, tenant TenantID, user Use
 	m.status = "active"
 	return nil
 }
-func (m *memoryStore) LastUsedAtForTest(_, expires time.Time) { m.session.ExpiresAt = expires }
+func (*memoryStore) ProvisionTenant(context.Context, pgx.Tx, TenantProvisioning) error { return nil }
+func (*memoryStore) ActivateTenant(context.Context, pgx.Tx, TenantID, time.Time) error { return nil }
+func (m *memoryStore) LastUsedAtForTest(_, expires time.Time)                          { m.session.ExpiresAt = expires }
 
 func TestLoginRefreshAndReplay(t *testing.T) {
 	passwords := DefaultPasswordParameters()

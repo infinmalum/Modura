@@ -1,0 +1,64 @@
+package organization
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/modura-dev/modura/backend/internal/modules/identity"
+)
+
+type storeStub struct {
+	department Department
+	position   Position
+}
+
+func (*storeStub) ListDepartments(context.Context, identity.TenantID) ([]DepartmentView, error) {
+	return nil, nil
+}
+func (*storeStub) ListPositions(context.Context, identity.TenantID) ([]PositionView, error) {
+	return nil, nil
+}
+
+func (s *storeStub) CreateDepartment(_ context.Context, department Department) error {
+	s.department = department
+	return nil
+}
+func (*storeStub) MoveDepartment(context.Context, identity.TenantID, DepartmentID, DepartmentID, time.Time) error {
+	return nil
+}
+func (*storeStub) DeleteDepartment(context.Context, identity.TenantID, DepartmentID) error {
+	return nil
+}
+func (s *storeStub) CreatePosition(_ context.Context, position Position) error {
+	s.position = position
+	return nil
+}
+func (*storeStub) AssignUser(context.Context, identity.TenantID, identity.UserID, DepartmentID, *PositionID, time.Time) error {
+	return nil
+}
+func (*storeStub) ProvisionInitialOrganization(context.Context, pgx.Tx, Department, identity.UserID) error {
+	return nil
+}
+
+func TestServiceNormalizesOrganizationNames(t *testing.T) {
+	store := &storeStub{}
+	now := time.Unix(1_700_000_000, 0)
+	service, err := NewService(store, func() time.Time { return now }, func(time.Time) (string, error) { return "018bcfe5-6800-7000-8000-000000000201", nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateDepartment(context.Background(), "tenant", nil, " 研发中心 ", 10); err != nil {
+		t.Fatal(err)
+	}
+	if store.department.Name != "研发中心" || store.department.NormalizedName != "研发中心" || !store.department.CreatedAt.Equal(now) {
+		t.Fatalf("department = %+v", store.department)
+	}
+	if _, err := service.CreatePosition(context.Background(), "tenant", " Platform ENGINEER "); err != nil {
+		t.Fatal(err)
+	}
+	if store.position.Name != "Platform ENGINEER" || store.position.NormalizedName != "platform engineer" {
+		t.Fatalf("position = %+v", store.position)
+	}
+}

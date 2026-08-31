@@ -39,6 +39,45 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface PlatformLoginRequest {
+  /**
+   * @minLength 1
+   * @maxLength 254
+   */
+  username: string;
+  /**
+   * @minLength 1
+   * @maxLength 1024
+   */
+  password: string;
+}
+
+export type PlatformTenantStatus =
+  (typeof PlatformTenantStatus)[keyof typeof PlatformTenantStatus];
+
+export const PlatformTenantStatus = {
+  provisioning: "provisioning",
+  active: "active",
+  suspended: "suspended",
+} as const;
+
+export interface PlatformTenant {
+  id: string;
+  slug: string;
+  displayName: string;
+  status: PlatformTenantStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantLifecycleRequest {
+  /**
+   * @minLength 1
+   * @maxLength 500
+   */
+  reason: string;
+}
+
 export interface ChangePasswordRequest {
   /**
    * @minLength 1
@@ -63,6 +102,64 @@ export interface OneTimeCredentialRequest {
    * @maxLength 1024
    */
   newPassword: string;
+}
+
+export interface Department {
+  id: string;
+  /** @nullable */
+  parentId?: string | null;
+  name: string;
+  sortOrder: number;
+}
+
+export interface CreateDepartmentRequest {
+  parentId: string;
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string;
+  /**
+   * @minimum -2147483648
+   * @maximum 2147483647
+   */
+  sortOrder: number;
+}
+
+export interface MoveDepartmentRequest {
+  parentId: string;
+}
+
+export interface IdentifierResponse {
+  id: string;
+}
+
+export type PositionStatus =
+  (typeof PositionStatus)[keyof typeof PositionStatus];
+
+export const PositionStatus = {
+  active: "active",
+  disabled: "disabled",
+} as const;
+
+export interface Position {
+  id: string;
+  name: string;
+  status: PositionStatus;
+}
+
+export interface CreatePositionRequest {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string;
+}
+
+export interface AssignUserOrganizationRequest {
+  departmentId: string;
+  /** @nullable */
+  positionId?: string | null;
 }
 
 export type AccessTokenResponseTokenType =
@@ -112,6 +209,11 @@ export type AuthenticationFailedResponse = Problem;
  * CSRF validation failed
  */
 export type CsrfFailedResponse = Problem;
+
+/**
+ * The authenticated actor lacks the required permission
+ */
+export type AuthorizationFailedResponse = Problem;
 
 export type CsrfTokenParameter = string;
 
@@ -574,6 +676,768 @@ export const useLogin = <
   TContext
 > => {
   return useMutation(getLoginMutationOptions(options), queryClient);
+};
+
+export type platformLoginResponse200 = {
+  data: AccessTokenResponse;
+  status: 200;
+};
+
+export type platformLoginResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type platformLoginResponseSuccess = platformLoginResponse200 & {
+  headers: Headers;
+};
+export type platformLoginResponseError = platformLoginResponse401 & {
+  headers: Headers;
+};
+
+export type platformLoginResponse =
+  platformLoginResponseSuccess | platformLoginResponseError;
+
+export const getPlatformLoginUrl = () => {
+  return `/api/platform/auth/login`;
+};
+
+/**
+ * @summary Establish a global platform-administrator session
+ */
+export const platformLogin = async (
+  platformLoginRequest: PlatformLoginRequest,
+  options?: RequestInit,
+): Promise<platformLoginResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getPlatformLoginUrl(), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(platformLoginRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: platformLoginResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as platformLoginResponse;
+};
+
+export const getPlatformLoginMutationOptions = <
+  TError = AuthenticationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof platformLogin>>,
+    TError,
+    PlatformLoginMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof platformLogin>>,
+  TError,
+  PlatformLoginMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["platformLogin"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof platformLogin>>,
+    PlatformLoginMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return platformLogin(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PlatformLoginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof platformLogin>>
+>;
+export type PlatformLoginMutationBody = PlatformLoginRequest;
+export type PlatformLoginMutationError = AuthenticationFailedResponse;
+export type PlatformLoginMutationVariables = { data: PlatformLoginRequest };
+
+/**
+ * @summary Establish a global platform-administrator session
+ */
+export const usePlatformLogin = <
+  TError = AuthenticationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof platformLogin>>,
+      TError,
+      PlatformLoginMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof platformLogin>>,
+  TError,
+  PlatformLoginMutationVariables,
+  TContext
+> => {
+  return useMutation(getPlatformLoginMutationOptions(options), queryClient);
+};
+
+export type platformRefreshResponse200 = {
+  data: AccessTokenResponse;
+  status: 200;
+};
+
+export type platformRefreshResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type platformRefreshResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type platformRefreshResponseSuccess = platformRefreshResponse200 & {
+  headers: Headers;
+};
+export type platformRefreshResponseError = (
+  platformRefreshResponse401 | platformRefreshResponse403
+) & {
+  headers: Headers;
+};
+
+export type platformRefreshResponse =
+  platformRefreshResponseSuccess | platformRefreshResponseError;
+
+export const getPlatformRefreshUrl = () => {
+  return `/api/platform/auth/refresh`;
+};
+
+/**
+ * @summary Rotate a platform-administrator refresh secret
+ */
+export const platformRefresh = async (
+  options?: RequestInit,
+): Promise<platformRefreshResponse> => {
+  const res = await fetch(getPlatformRefreshUrl(), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: platformRefreshResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as platformRefreshResponse;
+};
+
+export const getPlatformRefreshMutationOptions = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof platformRefresh>>,
+    TError,
+    void,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof platformRefresh>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["platformRefresh"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof platformRefresh>>,
+    void
+  > = () => {
+    return platformRefresh(fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PlatformRefreshMutationResult = NonNullable<
+  Awaited<ReturnType<typeof platformRefresh>>
+>;
+
+export type PlatformRefreshMutationError =
+  AuthenticationFailedResponse | CsrfFailedResponse;
+
+/**
+ * @summary Rotate a platform-administrator refresh secret
+ */
+export const usePlatformRefresh = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof platformRefresh>>,
+      TError,
+      void,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof platformRefresh>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getPlatformRefreshMutationOptions(options), queryClient);
+};
+
+export type listPlatformTenantsResponse200 = {
+  data: PlatformTenant[];
+  status: 200;
+};
+
+export type listPlatformTenantsResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type listPlatformTenantsResponseSuccess =
+  listPlatformTenantsResponse200 & {
+    headers: Headers;
+  };
+export type listPlatformTenantsResponseError =
+  listPlatformTenantsResponse401 & {
+    headers: Headers;
+  };
+
+export type listPlatformTenantsResponse =
+  listPlatformTenantsResponseSuccess | listPlatformTenantsResponseError;
+
+export const getListPlatformTenantsUrl = () => {
+  return `/api/platform/tenants`;
+};
+
+/**
+ * @summary List tenants as a global platform administrator
+ */
+export const listPlatformTenants = async (
+  options?: RequestInit,
+): Promise<listPlatformTenantsResponse> => {
+  const res = await fetch(getListPlatformTenantsUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listPlatformTenantsResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listPlatformTenantsResponse;
+};
+
+export const getListPlatformTenantsQueryKey = () => {
+  return [`/api/platform/tenants`] as const;
+};
+
+export const getListPlatformTenantsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlatformTenants>>,
+  TError = AuthenticationFailedResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listPlatformTenants>>,
+      TError,
+      TData
+    >
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPlatformTenantsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPlatformTenants>>
+  > = ({ signal }) => listPlatformTenants({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPlatformTenants>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListPlatformTenantsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlatformTenants>>
+>;
+export type ListPlatformTenantsQueryError = AuthenticationFailedResponse;
+
+export function useListPlatformTenants<
+  TData = Awaited<ReturnType<typeof listPlatformTenants>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformTenants>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformTenants>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformTenants>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListPlatformTenants<
+  TData = Awaited<ReturnType<typeof listPlatformTenants>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformTenants>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformTenants>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformTenants>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListPlatformTenants<
+  TData = Awaited<ReturnType<typeof listPlatformTenants>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformTenants>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List tenants as a global platform administrator
+ */
+
+export function useListPlatformTenants<
+  TData = Awaited<ReturnType<typeof listPlatformTenants>>,
+  TError = AuthenticationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformTenants>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getListPlatformTenantsQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type suspendPlatformTenantResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type suspendPlatformTenantResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type suspendPlatformTenantResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type suspendPlatformTenantResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type suspendPlatformTenantResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type suspendPlatformTenantResponseSuccess =
+  suspendPlatformTenantResponse204 & {
+    headers: Headers;
+  };
+export type suspendPlatformTenantResponseError = (
+  | suspendPlatformTenantResponse400
+  | suspendPlatformTenantResponse401
+  | suspendPlatformTenantResponse403
+  | suspendPlatformTenantResponse404
+) & {
+  headers: Headers;
+};
+
+export type suspendPlatformTenantResponse =
+  suspendPlatformTenantResponseSuccess | suspendPlatformTenantResponseError;
+
+export const getSuspendPlatformTenantUrl = (tenantId: string) => {
+  return `/api/platform/tenants/${tenantId}/suspend`;
+};
+
+/**
+ * @summary Suspend an active tenant with auditable reason
+ */
+export const suspendPlatformTenant = async (
+  tenantId: string,
+  tenantLifecycleRequest: TenantLifecycleRequest,
+  options?: RequestInit,
+): Promise<suspendPlatformTenantResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getSuspendPlatformTenantUrl(tenantId), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(tenantLifecycleRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: suspendPlatformTenantResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as suspendPlatformTenantResponse;
+};
+
+export const getSuspendPlatformTenantMutationOptions = <
+  TError = void | AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof suspendPlatformTenant>>,
+    TError,
+    SuspendPlatformTenantMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof suspendPlatformTenant>>,
+  TError,
+  SuspendPlatformTenantMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["suspendPlatformTenant"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof suspendPlatformTenant>>,
+    SuspendPlatformTenantMutationVariables
+  > = (props) => {
+    const { tenantId, data } = props ?? {};
+
+    return suspendPlatformTenant(tenantId, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SuspendPlatformTenantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof suspendPlatformTenant>>
+>;
+export type SuspendPlatformTenantMutationBody = TenantLifecycleRequest;
+export type SuspendPlatformTenantMutationError =
+  void | AuthenticationFailedResponse | CsrfFailedResponse;
+export type SuspendPlatformTenantMutationVariables = {
+  tenantId: string;
+  data: TenantLifecycleRequest;
+};
+
+/**
+ * @summary Suspend an active tenant with auditable reason
+ */
+export const useSuspendPlatformTenant = <
+  TError = void | AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof suspendPlatformTenant>>,
+      TError,
+      SuspendPlatformTenantMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof suspendPlatformTenant>>,
+  TError,
+  SuspendPlatformTenantMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getSuspendPlatformTenantMutationOptions(options),
+    queryClient,
+  );
+};
+
+export type reactivatePlatformTenantResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type reactivatePlatformTenantResponse400 = {
+  data: void;
+  status: 400;
+};
+
+export type reactivatePlatformTenantResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type reactivatePlatformTenantResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type reactivatePlatformTenantResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type reactivatePlatformTenantResponseSuccess =
+  reactivatePlatformTenantResponse204 & {
+    headers: Headers;
+  };
+export type reactivatePlatformTenantResponseError = (
+  | reactivatePlatformTenantResponse400
+  | reactivatePlatformTenantResponse401
+  | reactivatePlatformTenantResponse403
+  | reactivatePlatformTenantResponse404
+) & {
+  headers: Headers;
+};
+
+export type reactivatePlatformTenantResponse =
+  | reactivatePlatformTenantResponseSuccess
+  | reactivatePlatformTenantResponseError;
+
+export const getReactivatePlatformTenantUrl = (tenantId: string) => {
+  return `/api/platform/tenants/${tenantId}/reactivate`;
+};
+
+/**
+ * @summary Reactivate a suspended tenant with auditable reason
+ */
+export const reactivatePlatformTenant = async (
+  tenantId: string,
+  tenantLifecycleRequest: TenantLifecycleRequest,
+  options?: RequestInit,
+): Promise<reactivatePlatformTenantResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getReactivatePlatformTenantUrl(tenantId), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(tenantLifecycleRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: reactivatePlatformTenantResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as reactivatePlatformTenantResponse;
+};
+
+export const getReactivatePlatformTenantMutationOptions = <
+  TError = void | AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reactivatePlatformTenant>>,
+    TError,
+    ReactivatePlatformTenantMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reactivatePlatformTenant>>,
+  TError,
+  ReactivatePlatformTenantMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["reactivatePlatformTenant"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reactivatePlatformTenant>>,
+    ReactivatePlatformTenantMutationVariables
+  > = (props) => {
+    const { tenantId, data } = props ?? {};
+
+    return reactivatePlatformTenant(tenantId, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReactivatePlatformTenantMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reactivatePlatformTenant>>
+>;
+export type ReactivatePlatformTenantMutationBody = TenantLifecycleRequest;
+export type ReactivatePlatformTenantMutationError =
+  void | AuthenticationFailedResponse | CsrfFailedResponse;
+export type ReactivatePlatformTenantMutationVariables = {
+  tenantId: string;
+  data: TenantLifecycleRequest;
+};
+
+/**
+ * @summary Reactivate a suspended tenant with auditable reason
+ */
+export const useReactivatePlatformTenant = <
+  TError = void | AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof reactivatePlatformTenant>>,
+      TError,
+      ReactivatePlatformTenantMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof reactivatePlatformTenant>>,
+  TError,
+  ReactivatePlatformTenantMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getReactivatePlatformTenantMutationOptions(options),
+    queryClient,
+  );
 };
 
 export type refreshResponse200 = {
@@ -1342,4 +2206,1112 @@ export const useAcceptInvitation = <
   TContext
 > => {
   return useMutation(getAcceptInvitationMutationOptions(options), queryClient);
+};
+
+export type listDepartmentsResponse200 = {
+  data: Department[];
+  status: 200;
+};
+
+export type listDepartmentsResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type listDepartmentsResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type listDepartmentsResponseSuccess = listDepartmentsResponse200 & {
+  headers: Headers;
+};
+export type listDepartmentsResponseError = (
+  listDepartmentsResponse401 | listDepartmentsResponse403
+) & {
+  headers: Headers;
+};
+
+export type listDepartmentsResponse =
+  listDepartmentsResponseSuccess | listDepartmentsResponseError;
+
+export const getListDepartmentsUrl = () => {
+  return `/api/organization/departments`;
+};
+
+/**
+ * @summary List departments in the authenticated tenant
+ */
+export const listDepartments = async (
+  options?: RequestInit,
+): Promise<listDepartmentsResponse> => {
+  const res = await fetch(getListDepartmentsUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listDepartmentsResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listDepartmentsResponse;
+};
+
+export const getListDepartmentsQueryKey = () => {
+  return [`/api/organization/departments`] as const;
+};
+
+export const getListDepartmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDepartments>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listDepartments>>, TError, TData>
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListDepartmentsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDepartments>>> = ({
+    signal,
+  }) => listDepartments({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDepartments>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListDepartmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDepartments>>
+>;
+export type ListDepartmentsQueryError =
+  AuthenticationFailedResponse | AuthorizationFailedResponse;
+
+export function useListDepartments<
+  TData = Awaited<ReturnType<typeof listDepartments>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDepartments>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDepartments>>,
+          TError,
+          Awaited<ReturnType<typeof listDepartments>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListDepartments<
+  TData = Awaited<ReturnType<typeof listDepartments>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDepartments>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDepartments>>,
+          TError,
+          Awaited<ReturnType<typeof listDepartments>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListDepartments<
+  TData = Awaited<ReturnType<typeof listDepartments>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDepartments>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List departments in the authenticated tenant
+ */
+
+export function useListDepartments<
+  TData = Awaited<ReturnType<typeof listDepartments>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDepartments>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getListDepartmentsQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type createDepartmentResponse201 = {
+  data: IdentifierResponse;
+  status: 201;
+};
+
+export type createDepartmentResponse400 = {
+  data: Problem;
+  status: 400;
+};
+
+export type createDepartmentResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type createDepartmentResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type createDepartmentResponseSuccess = createDepartmentResponse201 & {
+  headers: Headers;
+};
+export type createDepartmentResponseError = (
+  | createDepartmentResponse400
+  | createDepartmentResponse401
+  | createDepartmentResponse403
+) & {
+  headers: Headers;
+};
+
+export type createDepartmentResponse =
+  createDepartmentResponseSuccess | createDepartmentResponseError;
+
+export const getCreateDepartmentUrl = () => {
+  return `/api/organization/departments`;
+};
+
+/**
+ * @summary Create a department in the authenticated tenant
+ */
+export const createDepartment = async (
+  createDepartmentRequest: CreateDepartmentRequest,
+  options?: RequestInit,
+): Promise<createDepartmentResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getCreateDepartmentUrl(), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(createDepartmentRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createDepartmentResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as createDepartmentResponse;
+};
+
+export const getCreateDepartmentMutationOptions = <
+  TError = Problem | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createDepartment>>,
+    TError,
+    CreateDepartmentMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createDepartment>>,
+  TError,
+  CreateDepartmentMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["createDepartment"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createDepartment>>,
+    CreateDepartmentMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createDepartment(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateDepartmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createDepartment>>
+>;
+export type CreateDepartmentMutationBody = CreateDepartmentRequest;
+export type CreateDepartmentMutationError =
+  Problem | AuthenticationFailedResponse | AuthorizationFailedResponse;
+export type CreateDepartmentMutationVariables = {
+  data: CreateDepartmentRequest;
+};
+
+/**
+ * @summary Create a department in the authenticated tenant
+ */
+export const useCreateDepartment = <
+  TError = Problem | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createDepartment>>,
+      TError,
+      CreateDepartmentMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof createDepartment>>,
+  TError,
+  CreateDepartmentMutationVariables,
+  TContext
+> => {
+  return useMutation(getCreateDepartmentMutationOptions(options), queryClient);
+};
+
+export type moveDepartmentResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type moveDepartmentResponse400 = {
+  data: Problem;
+  status: 400;
+};
+
+export type moveDepartmentResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type moveDepartmentResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type moveDepartmentResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type moveDepartmentResponseSuccess = moveDepartmentResponse204 & {
+  headers: Headers;
+};
+export type moveDepartmentResponseError = (
+  | moveDepartmentResponse400
+  | moveDepartmentResponse401
+  | moveDepartmentResponse403
+  | moveDepartmentResponse404
+) & {
+  headers: Headers;
+};
+
+export type moveDepartmentResponse =
+  moveDepartmentResponseSuccess | moveDepartmentResponseError;
+
+export const getMoveDepartmentUrl = (departmentId: string) => {
+  return `/api/organization/departments/${departmentId}`;
+};
+
+/**
+ * @summary Move a department under another parent
+ */
+export const moveDepartment = async (
+  departmentId: string,
+  moveDepartmentRequest: MoveDepartmentRequest,
+  options?: RequestInit,
+): Promise<moveDepartmentResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getMoveDepartmentUrl(departmentId), {
+    ...options,
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(moveDepartmentRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: moveDepartmentResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as moveDepartmentResponse;
+};
+
+export const getMoveDepartmentMutationOptions = <
+  TError =
+    Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof moveDepartment>>,
+    TError,
+    MoveDepartmentMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof moveDepartment>>,
+  TError,
+  MoveDepartmentMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["moveDepartment"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof moveDepartment>>,
+    MoveDepartmentMutationVariables
+  > = (props) => {
+    const { departmentId, data } = props ?? {};
+
+    return moveDepartment(departmentId, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MoveDepartmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof moveDepartment>>
+>;
+export type MoveDepartmentMutationBody = MoveDepartmentRequest;
+export type MoveDepartmentMutationError =
+  Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void;
+export type MoveDepartmentMutationVariables = {
+  departmentId: string;
+  data: MoveDepartmentRequest;
+};
+
+/**
+ * @summary Move a department under another parent
+ */
+export const useMoveDepartment = <
+  TError =
+    Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof moveDepartment>>,
+      TError,
+      MoveDepartmentMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof moveDepartment>>,
+  TError,
+  MoveDepartmentMutationVariables,
+  TContext
+> => {
+  return useMutation(getMoveDepartmentMutationOptions(options), queryClient);
+};
+
+export type deleteDepartmentResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteDepartmentResponse400 = {
+  data: Problem;
+  status: 400;
+};
+
+export type deleteDepartmentResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type deleteDepartmentResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type deleteDepartmentResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type deleteDepartmentResponseSuccess = deleteDepartmentResponse204 & {
+  headers: Headers;
+};
+export type deleteDepartmentResponseError = (
+  | deleteDepartmentResponse400
+  | deleteDepartmentResponse401
+  | deleteDepartmentResponse403
+  | deleteDepartmentResponse404
+) & {
+  headers: Headers;
+};
+
+export type deleteDepartmentResponse =
+  deleteDepartmentResponseSuccess | deleteDepartmentResponseError;
+
+export const getDeleteDepartmentUrl = (departmentId: string) => {
+  return `/api/organization/departments/${departmentId}`;
+};
+
+/**
+ * @summary Delete an unused non-root department
+ */
+export const deleteDepartment = async (
+  departmentId: string,
+  options?: RequestInit,
+): Promise<deleteDepartmentResponse> => {
+  const res = await fetch(getDeleteDepartmentUrl(departmentId), {
+    ...options,
+    method: "DELETE",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteDepartmentResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as deleteDepartmentResponse;
+};
+
+export const getDeleteDepartmentMutationOptions = <
+  TError =
+    Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteDepartment>>,
+    TError,
+    DeleteDepartmentMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteDepartment>>,
+  TError,
+  DeleteDepartmentMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["deleteDepartment"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteDepartment>>,
+    DeleteDepartmentMutationVariables
+  > = (props) => {
+    const { departmentId } = props ?? {};
+
+    return deleteDepartment(departmentId, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteDepartmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteDepartment>>
+>;
+
+export type DeleteDepartmentMutationError =
+  Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void;
+export type DeleteDepartmentMutationVariables = { departmentId: string };
+
+/**
+ * @summary Delete an unused non-root department
+ */
+export const useDeleteDepartment = <
+  TError =
+    Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteDepartment>>,
+      TError,
+      DeleteDepartmentMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteDepartment>>,
+  TError,
+  DeleteDepartmentMutationVariables,
+  TContext
+> => {
+  return useMutation(getDeleteDepartmentMutationOptions(options), queryClient);
+};
+
+export type listPositionsResponse200 = {
+  data: Position[];
+  status: 200;
+};
+
+export type listPositionsResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type listPositionsResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type listPositionsResponseSuccess = listPositionsResponse200 & {
+  headers: Headers;
+};
+export type listPositionsResponseError = (
+  listPositionsResponse401 | listPositionsResponse403
+) & {
+  headers: Headers;
+};
+
+export type listPositionsResponse =
+  listPositionsResponseSuccess | listPositionsResponseError;
+
+export const getListPositionsUrl = () => {
+  return `/api/organization/positions`;
+};
+
+/**
+ * @summary List positions in the authenticated tenant
+ */
+export const listPositions = async (
+  options?: RequestInit,
+): Promise<listPositionsResponse> => {
+  const res = await fetch(getListPositionsUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listPositionsResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listPositionsResponse;
+};
+
+export const getListPositionsQueryKey = () => {
+  return [`/api/organization/positions`] as const;
+};
+
+export const getListPositionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPositions>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listPositions>>, TError, TData>
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPositionsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPositions>>> = ({
+    signal,
+  }) => listPositions({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPositions>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListPositionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPositions>>
+>;
+export type ListPositionsQueryError =
+  AuthenticationFailedResponse | AuthorizationFailedResponse;
+
+export function useListPositions<
+  TData = Awaited<ReturnType<typeof listPositions>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listPositions>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPositions>>,
+          TError,
+          Awaited<ReturnType<typeof listPositions>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListPositions<
+  TData = Awaited<ReturnType<typeof listPositions>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listPositions>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPositions>>,
+          TError,
+          Awaited<ReturnType<typeof listPositions>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useListPositions<
+  TData = Awaited<ReturnType<typeof listPositions>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listPositions>>, TError, TData>
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List positions in the authenticated tenant
+ */
+
+export function useListPositions<
+  TData = Awaited<ReturnType<typeof listPositions>>,
+  TError = AuthenticationFailedResponse | AuthorizationFailedResponse,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listPositions>>, TError, TData>
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getListPositionsQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type createPositionResponse201 = {
+  data: IdentifierResponse;
+  status: 201;
+};
+
+export type createPositionResponse400 = {
+  data: Problem;
+  status: 400;
+};
+
+export type createPositionResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type createPositionResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type createPositionResponseSuccess = createPositionResponse201 & {
+  headers: Headers;
+};
+export type createPositionResponseError = (
+  | createPositionResponse400
+  | createPositionResponse401
+  | createPositionResponse403
+) & {
+  headers: Headers;
+};
+
+export type createPositionResponse =
+  createPositionResponseSuccess | createPositionResponseError;
+
+export const getCreatePositionUrl = () => {
+  return `/api/organization/positions`;
+};
+
+/**
+ * @summary Create a position in the authenticated tenant
+ */
+export const createPosition = async (
+  createPositionRequest: CreatePositionRequest,
+  options?: RequestInit,
+): Promise<createPositionResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getCreatePositionUrl(), {
+    ...options,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(createPositionRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createPositionResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as createPositionResponse;
+};
+
+export const getCreatePositionMutationOptions = <
+  TError = Problem | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPosition>>,
+    TError,
+    CreatePositionMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPosition>>,
+  TError,
+  CreatePositionMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["createPosition"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPosition>>,
+    CreatePositionMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createPosition(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePositionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPosition>>
+>;
+export type CreatePositionMutationBody = CreatePositionRequest;
+export type CreatePositionMutationError =
+  Problem | AuthenticationFailedResponse | AuthorizationFailedResponse;
+export type CreatePositionMutationVariables = { data: CreatePositionRequest };
+
+/**
+ * @summary Create a position in the authenticated tenant
+ */
+export const useCreatePosition = <
+  TError = Problem | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createPosition>>,
+      TError,
+      CreatePositionMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof createPosition>>,
+  TError,
+  CreatePositionMutationVariables,
+  TContext
+> => {
+  return useMutation(getCreatePositionMutationOptions(options), queryClient);
+};
+
+export type assignUserOrganizationResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type assignUserOrganizationResponse400 = {
+  data: Problem;
+  status: 400;
+};
+
+export type assignUserOrganizationResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type assignUserOrganizationResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type assignUserOrganizationResponseSuccess =
+  assignUserOrganizationResponse204 & {
+    headers: Headers;
+  };
+export type assignUserOrganizationResponseError = (
+  | assignUserOrganizationResponse400
+  | assignUserOrganizationResponse401
+  | assignUserOrganizationResponse403
+) & {
+  headers: Headers;
+};
+
+export type assignUserOrganizationResponse =
+  assignUserOrganizationResponseSuccess | assignUserOrganizationResponseError;
+
+export const getAssignUserOrganizationUrl = (userId: string) => {
+  return `/api/organization/users/${userId}/assignment`;
+};
+
+/**
+ * @summary Set a user's primary department and optional position
+ */
+export const assignUserOrganization = async (
+  userId: string,
+  assignUserOrganizationRequest: AssignUserOrganizationRequest,
+  options?: RequestInit,
+): Promise<assignUserOrganizationResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getAssignUserOrganizationUrl(userId), {
+    ...options,
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(assignUserOrganizationRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: assignUserOrganizationResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as assignUserOrganizationResponse;
+};
+
+export const getAssignUserOrganizationMutationOptions = <
+  TError = Problem | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof assignUserOrganization>>,
+    TError,
+    AssignUserOrganizationMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof assignUserOrganization>>,
+  TError,
+  AssignUserOrganizationMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["assignUserOrganization"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof assignUserOrganization>>,
+    AssignUserOrganizationMutationVariables
+  > = (props) => {
+    const { userId, data } = props ?? {};
+
+    return assignUserOrganization(userId, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AssignUserOrganizationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof assignUserOrganization>>
+>;
+export type AssignUserOrganizationMutationBody = AssignUserOrganizationRequest;
+export type AssignUserOrganizationMutationError =
+  Problem | AuthenticationFailedResponse | AuthorizationFailedResponse;
+export type AssignUserOrganizationMutationVariables = {
+  userId: string;
+  data: AssignUserOrganizationRequest;
+};
+
+/**
+ * @summary Set a user's primary department and optional position
+ */
+export const useAssignUserOrganization = <
+  TError = Problem | AuthenticationFailedResponse | AuthorizationFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof assignUserOrganization>>,
+      TError,
+      AssignUserOrganizationMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof assignUserOrganization>>,
+  TError,
+  AssignUserOrganizationMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getAssignUserOrganizationMutationOptions(options),
+    queryClient,
+  );
 };

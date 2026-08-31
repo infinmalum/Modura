@@ -28,7 +28,7 @@ backend-test:
 	cd backend && GOCACHE="$$PWD/.cache/go-build" go test ./...
 
 backend-build:
-	cd backend && GOCACHE="$$PWD/.cache/go-build" go build ./cmd/modura
+	cd backend && GOCACHE="$$PWD/.cache/go-build" go build ./cmd/...
 
 admin-verify:
 	cd admin && npm run format:check

@@ -12,8 +12,16 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/modura-dev/modura/backend/internal/modules/authorization"
+	authorizationpostgres "github.com/modura-dev/modura/backend/internal/modules/authorization/postgres"
 	"github.com/modura-dev/modura/backend/internal/modules/identity"
 	identitypostgres "github.com/modura-dev/modura/backend/internal/modules/identity/postgres"
+	"github.com/modura-dev/modura/backend/internal/modules/organization"
+	organizationpostgres "github.com/modura-dev/modura/backend/internal/modules/organization/postgres"
+	"github.com/modura-dev/modura/backend/internal/modules/platformadmin"
+	platformadminpostgres "github.com/modura-dev/modura/backend/internal/modules/platformadmin/postgres"
+	"github.com/modura-dev/modura/backend/internal/modules/platformtenant"
+	platformtenantpostgres "github.com/modura-dev/modura/backend/internal/modules/platformtenant/postgres"
 	"github.com/modura-dev/modura/backend/internal/platform/config"
 	"github.com/modura-dev/modura/backend/internal/platform/httpserver"
 	"github.com/modura-dev/modura/backend/internal/platform/identifier"
@@ -57,7 +65,42 @@ func main() {
 		logger.Error("configure identity service", "error", err)
 		os.Exit(1)
 	}
-	server := httpserver.New(cfg.HTTP, logger, httpserver.Dependencies{Identity: identityService, Ready: pool.Ping})
+	authorizationService, err := authorization.NewService(authorizationpostgres.New(pool))
+	if err != nil {
+		logger.Error("configure authorization service", "error", err)
+		os.Exit(1)
+	}
+	organizationService, err := organization.NewService(organizationpostgres.New(pool), time.Now, func(now time.Time) (string, error) {
+		id, idErr := identifier.NewUUIDv7(now, nil)
+		return string(id), idErr
+	})
+	if err != nil {
+		logger.Error("configure organization service", "error", err)
+		os.Exit(1)
+	}
+	platformSigner, err := identity.NewAccessTokenSigner(cfg.Auth.Issuer, cfg.Auth.PlatformAudience, cfg.Auth.SigningKeyID, cfg.Auth.SigningKey, cfg.Auth.AccessLifetime)
+	if err != nil {
+		logger.Error("configure platform access tokens", "error", err)
+		os.Exit(1)
+	}
+	platformVerifier := identity.NewAccessTokenVerifier(cfg.Auth.Issuer, cfg.Auth.PlatformAudience, map[string][]byte{cfg.Auth.SigningKeyID: cfg.Auth.SigningKey}, 5*time.Second)
+	platformAdminService, err := platformadmin.NewService(platformadminpostgres.New(pool), platformSigner, platformVerifier, identity.DefaultPasswordParameters(), cfg.Auth.RefreshLifetime, time.Now, func(now time.Time) (string, error) {
+		id, idErr := identifier.NewUUIDv7(now, nil)
+		return string(id), idErr
+	}, func() (string, error) { return identity.NewOpaqueToken(32) })
+	if err != nil {
+		logger.Error("configure platform administrator service", "error", err)
+		os.Exit(1)
+	}
+	platformTenantService, err := platformtenant.NewService(platformtenantpostgres.New(pool), time.Now, func(now time.Time) (string, error) {
+		id, idErr := identifier.NewUUIDv7(now, nil)
+		return string(id), idErr
+	})
+	if err != nil {
+		logger.Error("configure platform tenant service", "error", err)
+		os.Exit(1)
+	}
+	server := httpserver.New(cfg.HTTP, logger, httpserver.Dependencies{Identity: identityService, Authorizer: authorizationService, Organization: organizationService, PlatformAdmin: platformAdminService, PlatformTenant: platformTenantService, Ready: pool.Ping})
 
 	errCh := make(chan error, 1)
 	go func() {

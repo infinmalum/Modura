@@ -15,8 +15,9 @@ import (
 type AccessTokenClaims struct {
 	Issuer          string    `json:"iss"`
 	Audience        string    `json:"aud"`
+	PrincipalType   string    `json:"pty"`
 	Subject         UserID    `json:"sub"`
-	TenantID        TenantID  `json:"tid"`
+	TenantID        TenantID  `json:"tid,omitempty"`
 	SessionID       SessionID `json:"sid"`
 	TokenID         string    `json:"jti"`
 	SecurityVersion int64     `json:"sv"`
@@ -51,7 +52,7 @@ func (s AccessTokenSigner) Sign(actor Actor, tokenID string, securityVersion int
 	if err != nil {
 		return "", fmt.Errorf("marshal token header: %w", err)
 	}
-	claims := AccessTokenClaims{Issuer: s.issuer, Audience: s.audience, Subject: actor.UserID, TenantID: actor.TenantID, SessionID: actor.SessionID, TokenID: tokenID, SecurityVersion: securityVersion, IssuedAt: now.Unix(), ExpiresAt: now.Add(s.lifetime).Unix()}
+	claims := AccessTokenClaims{Issuer: s.issuer, Audience: s.audience, PrincipalType: "tenant", Subject: actor.UserID, TenantID: actor.TenantID, SessionID: actor.SessionID, TokenID: tokenID, SecurityVersion: securityVersion, IssuedAt: now.Unix(), ExpiresAt: now.Add(s.lifetime).Unix()}
 	payload, err := json.Marshal(claims)
 	if err != nil {
 		return "", fmt.Errorf("marshal token claims: %w", err)
@@ -59,6 +60,28 @@ func (s AccessTokenSigner) Sign(actor Actor, tokenID string, securityVersion int
 	unsigned := encodeTokenPart(header) + "." + encodeTokenPart(payload)
 	return unsigned + "." + encodeTokenPart(sign(s.key, unsigned)), nil
 }
+
+// SignPlatform creates a token for a global platform principal without tenant scope.
+func (s AccessTokenSigner) SignPlatform(subject UserID, sessionID SessionID, tokenID string, securityVersion int64, now time.Time) (string, error) {
+	header, err := json.Marshal(struct {
+		Algorithm string `json:"alg"`
+		Type      string `json:"typ"`
+		KeyID     string `json:"kid"`
+	}{Algorithm: "HS256", Type: "JWT", KeyID: s.keyID})
+	if err != nil {
+		return "", fmt.Errorf("marshal token header: %w", err)
+	}
+	claims := AccessTokenClaims{Issuer: s.issuer, Audience: s.audience, PrincipalType: "platform", Subject: subject, SessionID: sessionID, TokenID: tokenID, SecurityVersion: securityVersion, IssuedAt: now.Unix(), ExpiresAt: now.Add(s.lifetime).Unix()}
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		return "", fmt.Errorf("marshal token claims: %w", err)
+	}
+	unsigned := encodeTokenPart(header) + "." + encodeTokenPart(payload)
+	return unsigned + "." + encodeTokenPart(sign(s.key, unsigned)), nil
+}
+
+// Lifetime returns the configured access-token lifetime.
+func (s AccessTokenSigner) Lifetime() time.Duration { return s.lifetime }
 
 // AccessTokenVerifier validates access tokens against a rotating key set.
 type AccessTokenVerifier struct {
@@ -95,7 +118,8 @@ func (v AccessTokenVerifier) Verify(token string, now time.Time) (AccessTokenCla
 	if err := decodeTokenJSON(parts[1], &claims); err != nil {
 		return AccessTokenClaims{}, ErrInvalidToken
 	}
-	if claims.Issuer != v.issuer || claims.Audience != v.audience || claims.Subject == "" || claims.TenantID == "" || claims.SessionID == "" || claims.TokenID == "" || claims.SecurityVersion <= 0 {
+	validPrincipal := (claims.PrincipalType == "tenant" && claims.TenantID != "") || (claims.PrincipalType == "platform" && claims.TenantID == "")
+	if claims.Issuer != v.issuer || claims.Audience != v.audience || !validPrincipal || claims.Subject == "" || claims.SessionID == "" || claims.TokenID == "" || claims.SecurityVersion <= 0 {
 		return AccessTokenClaims{}, ErrInvalidToken
 	}
 	if now.After(time.Unix(claims.ExpiresAt, 0).Add(v.clockSkew)) {
