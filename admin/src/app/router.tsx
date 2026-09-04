@@ -4,6 +4,8 @@ import { LoginPage } from "../features/auth/LoginPage";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
 import { PlatformLoginPage } from "../features/platform/PlatformLoginPage";
 import { AdminLayout } from "../features/workspace/AdminLayout";
+import { PermissionGuard } from "../features/workspace/PermissionGuard";
+import { routePermissions } from "../features/workspace/navigation";
 import {
   AuditRoute,
   ConfigurationsRoute,
@@ -39,23 +41,70 @@ export const router = createBrowserRouter([
     element: <AdminLayout />,
     children: [
       { index: true, element: <WorkspaceRoute /> },
-      { path: "organization/departments", element: <DepartmentsRoute /> },
-      { path: "organization/positions", element: <PositionsRoute /> },
-      { path: "organization/users", element: <UserAssignmentsRoute /> },
-      { path: "authorization/roles", element: <RolesRoute /> },
+      {
+        path: "organization/departments",
+        element: (
+          <PermissionGuard permission={routePermissions.departments}>
+            <DepartmentsRoute />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: "organization/positions",
+        element: (
+          <PermissionGuard permission={routePermissions.positions}>
+            <PositionsRoute />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: "organization/users",
+        element: (
+          <PermissionGuard permission={routePermissions.userAssignments}>
+            <UserAssignmentsRoute />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: "authorization/roles",
+        element: (
+          <PermissionGuard permission={routePermissions.roles}>
+            <RolesRoute />
+          </PermissionGuard>
+        ),
+      },
       {
         path: "authorization/roles/:roleId/policies",
-        element: <RolePoliciesRoute />,
+        element: (
+          <PermissionGuard permission={routePermissions.rolePolicies}>
+            <RolePoliciesRoute />
+          </PermissionGuard>
+        ),
       },
       {
         path: "settings/dictionaries",
-        element: <DictionariesRoute />,
+        element: (
+          <PermissionGuard permission={routePermissions.dictionaries}>
+            <DictionariesRoute />
+          </PermissionGuard>
+        ),
       },
       {
         path: "settings/configurations",
-        element: <ConfigurationsRoute />,
+        element: (
+          <PermissionGuard permission={routePermissions.configurations}>
+            <ConfigurationsRoute />
+          </PermissionGuard>
+        ),
       },
-      { path: "audit", element: <AuditRoute /> },
+      {
+        path: "audit",
+        element: (
+          <PermissionGuard permission={routePermissions.audit}>
+            <AuditRoute />
+          </PermissionGuard>
+        ),
+      },
     ],
   },
 ]);

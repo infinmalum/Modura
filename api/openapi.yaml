@@ -106,6 +106,26 @@ paths:
           $ref: "#/components/responses/AuthenticationFailed"
         "403":
           $ref: "#/components/responses/CsrfFailed"
+  /platform/auth/logout:
+    post:
+      operationId: platformLogout
+      summary: Revoke the current platform-administrator session
+      tags: [platform-authentication]
+      security:
+        - platformBearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: Platform session revoked and cookies cleared
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
+        "403":
+          $ref: "#/components/responses/CsrfFailed"
   /platform/tenants:
     post:
       operationId: provisionPlatformTenant
@@ -502,6 +522,36 @@ paths:
           $ref: "#/components/responses/AuthorizationFailed"
         "404":
           description: Department or parent not found in the tenant
+    put:
+      operationId: updateDepartment
+      summary: Update a department name and sort order
+      tags: [organization]
+      security:
+        - bearerAuth: []
+      x-modura-permission: { resource: organization.departments, action: update }
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDepartmentRequest"
+      responses:
+        "204":
+          description: Department updated
+        "400":
+          description: Invalid or duplicate department
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailed"
+        "404":
+          description: Department not found in the tenant
     delete:
       operationId: deleteDepartment
       summary: Delete an unused non-root department
@@ -579,6 +629,39 @@ paths:
           $ref: "#/components/responses/AuthenticationFailed"
         "403":
           $ref: "#/components/responses/AuthorizationFailed"
+  /organization/positions/{positionId}:
+    parameters:
+      - $ref: "#/components/parameters/PositionId"
+    patch:
+      operationId: updatePosition
+      summary: Update a position name and status
+      tags: [organization]
+      security:
+        - bearerAuth: []
+      x-modura-permission: { resource: organization.positions, action: update }
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePositionRequest"
+      responses:
+        "204":
+          description: Position updated
+        "400":
+          description: Invalid or duplicate position
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailed"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailed"
+        "404":
+          description: Position not found in the tenant
   /organization/users/{userId}/assignment:
     put:
       operationId: assignUserOrganization
@@ -903,6 +986,13 @@ components:
       schema:
         type: string
         format: uuid
+    PositionId:
+      name: positionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     UserId:
       name: userId
       in: path
@@ -1131,6 +1221,19 @@ components:
         parentId:
           type: string
           format: uuid
+    UpdateDepartmentRequest:
+      type: object
+      additionalProperties: false
+      required: [name, sortOrder]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        sortOrder:
+          type: integer
+          minimum: -2147483648
+          maximum: 2147483647
     IdentifierResponse:
       type: object
       additionalProperties: false
@@ -1161,6 +1264,18 @@ components:
           type: string
           minLength: 1
           maxLength: 128
+    UpdatePositionRequest:
+      type: object
+      additionalProperties: false
+      required: [name, status]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        status:
+          type: string
+          enum: [active, disabled]
     AssignUserOrganizationRequest:
       type: object
       additionalProperties: false

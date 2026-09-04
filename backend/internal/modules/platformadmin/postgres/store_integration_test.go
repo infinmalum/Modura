@@ -49,6 +49,16 @@ func TestPlatformAuthenticationIsDistinctAndReplaySafe(t *testing.T) {
 	if err != nil || actor.AdministratorID != administratorID {
 		t.Fatalf("actor=%+v err=%v", actor, err)
 	}
+	if err := service.Logout(context.Background(), actor); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.AuthenticateAccess(context.Background(), tokens.AccessToken); !errors.Is(err, platformadmin.ErrInvalidToken) {
+		t.Fatalf("logged-out access error = %v", err)
+	}
+	tokens, err = service.Login(context.Background(), "platformadmin", "a secure platform password")
+	if err != nil {
+		t.Fatal(err)
+	}
 	tenantToken, err := signer.Sign(identity.Actor{TenantID: "tenant", UserID: "user", SessionID: "session"}, "tenant-token", 1, now)
 	if err != nil {
 		t.Fatal(err)

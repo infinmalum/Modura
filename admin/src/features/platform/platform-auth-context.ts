@@ -7,7 +7,7 @@ export interface PlatformSession {
   csrfToken: string;
   fetchOptions: RequestInit;
   login(request: PlatformLoginRequest): Promise<void>;
-  logout(): void;
+  logout(): Promise<void>;
 }
 export const PlatformAuthContext = createContext<PlatformSession | null>(null);
 export function usePlatformAuth() {

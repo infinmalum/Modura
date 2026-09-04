@@ -66,6 +66,7 @@ type Store interface {
 	CreateSession(context.Context, NewSession) error
 	RotateSession(context.Context, [32]byte, [32]byte, time.Time, time.Time) (Session, error)
 	ValidateSession(context.Context, Session, time.Time) error
+	RevokeSession(context.Context, Actor, string, time.Time) error
 }
 
 // Service implements platform-administrator bootstrap and authentication.
@@ -161,6 +162,17 @@ func (s *Service) AuthenticateAccess(ctx context.Context, token string) (Actor, 
 		return Actor{}, ErrInvalidToken
 	}
 	return Actor{AdministratorID: session.AdministratorID, SessionID: session.ID}, nil
+}
+
+// Logout revokes the current platform-administrator session.
+func (s *Service) Logout(ctx context.Context, actor Actor) error {
+	if actor.AdministratorID == "" || actor.SessionID == "" {
+		return ErrInvalidToken
+	}
+	if err := s.store.RevokeSession(ctx, actor, "logout", s.now().UTC()); err != nil {
+		return fmt.Errorf("logout platform session: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) startSession(ctx context.Context, account Account) (Tokens, error) {

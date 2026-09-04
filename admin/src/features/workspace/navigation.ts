@@ -1,36 +1,47 @@
+export const routePermissions = {
+  departments: "organization.departments/read",
+  positions: "organization.positions/read",
+  userAssignments: "authorization.user-roles/read",
+  roles: "authorization.roles/read",
+  rolePolicies: "authorization.policies/read",
+  dictionaries: "settings.dictionaries/read",
+  configurations: "settings.configurations/read",
+  audit: "audit.events/read",
+} as const;
+
 export const navigation = [
   { key: "/", label: "概览" },
   {
     key: "/organization/departments",
     label: "部门管理",
-    permission: "organization.departments/read",
+    permission: routePermissions.departments,
   },
   {
     key: "/organization/positions",
     label: "岗位管理",
-    permission: "organization.positions/read",
+    permission: routePermissions.positions,
   },
   {
     key: "/organization/users",
     label: "用户授权",
-    permission: "authorization.user-roles/read",
+    permission: routePermissions.userAssignments,
   },
   {
     key: "/authorization/roles",
     label: "角色与策略",
-    permission: "authorization.roles/read",
+    permission: routePermissions.roles,
   },
   {
     key: "/settings/dictionaries",
     label: "字典管理",
-    permission: "settings.dictionaries/read",
+    permission: routePermissions.dictionaries,
   },
   {
     key: "/settings/configurations",
     label: "系统配置",
-    permission: "settings.configurations/read",
+    permission: routePermissions.configurations,
   },
-  { key: "/audit", label: "审计日志", permission: "audit.events/read" },
+  { key: "/audit", label: "审计日志", permission: routePermissions.audit },
 ];
 
 export function visibleNavigation(granted: ReadonlySet<string>) {

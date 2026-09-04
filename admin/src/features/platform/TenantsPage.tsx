@@ -10,6 +10,7 @@ import {
   Table,
   Tag,
 } from "antd";
+import { useState } from "react";
 import {
   getListPlatformTenantsQueryKey,
   useListPlatformTenants,
@@ -23,13 +24,16 @@ export function TenantsPage() {
   const auth = usePlatformAuth();
   const client = useQueryClient();
   const query = useListPlatformTenants({ fetch: auth.fetchOptions });
+  const [provisioningKey, setProvisioningKey] = useState(() =>
+    crypto.randomUUID(),
+  );
   const tenants = query.data?.status === 200 ? query.data.data : [];
   const writeFetch = {
     ...auth.fetchOptions,
     headers: {
       ...auth.fetchOptions.headers,
       "X-CSRF-Token": auth.csrfToken,
-      "Idempotency-Key": crypto.randomUUID(),
+      "Idempotency-Key": provisioningKey,
     },
   };
   const refresh = () =>
@@ -39,6 +43,7 @@ export function TenantsPage() {
     mutation: {
       onSuccess: async (response) => {
         if (response.status === 200 || response.status === 201) {
+          setProvisioningKey(crypto.randomUUID());
           message.success(
             response.data.created ? "租户已创建" : "幂等请求已返回原结果",
           );

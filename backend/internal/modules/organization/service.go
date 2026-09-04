@@ -16,11 +16,25 @@ type Store interface {
 	ListDepartments(context.Context, identity.TenantID, DataScope) ([]DepartmentView, error)
 	ListPositions(context.Context, identity.TenantID) ([]PositionView, error)
 	CreateDepartment(context.Context, pgx.Tx, Department, DataScope) error
+	UpdateDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, string, string, int, DataScope, time.Time) error
 	MoveDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, DepartmentID, DataScope, time.Time) error
 	DeleteDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, DataScope) error
 	CreatePosition(context.Context, pgx.Tx, Position) error
+	UpdatePosition(context.Context, pgx.Tx, identity.TenantID, PositionID, string, string, PositionStatus, time.Time) error
 	AssignUser(context.Context, pgx.Tx, identity.TenantID, identity.UserID, DepartmentID, *PositionID, DataScope, time.Time) error
 	ProvisionInitialOrganization(context.Context, pgx.Tx, Department, identity.UserID) error
+}
+
+// UpdateDepartment changes a visible department's display fields.
+func (s *Service) UpdateDepartment(ctx context.Context, write WriteContext, departmentID DepartmentID, name string, sortOrder int) error {
+	normalized := NormalizeName(name)
+	if !validWrite(write) || departmentID == "" || normalized == "" {
+		return fmt.Errorf("invalid department update")
+	}
+	now := s.now().UTC()
+	return s.write(ctx, write, now, "organization.department.updated", "department", string(departmentID), func(tx pgx.Tx) error {
+		return s.store.UpdateDepartment(ctx, tx, write.Actor.TenantID, departmentID, strings.TrimSpace(name), normalized, sortOrder, write.Scope, now)
+	})
 }
 
 // Transactor supplies the application-owned transaction boundary.
@@ -137,6 +151,18 @@ func (s *Service) CreatePosition(ctx context.Context, write WriteContext, name s
 		return "", fmt.Errorf("create position: %w", err)
 	}
 	return position.ID, nil
+}
+
+// UpdatePosition changes a position's display name and lifecycle status.
+func (s *Service) UpdatePosition(ctx context.Context, write WriteContext, positionID PositionID, name string, status PositionStatus) error {
+	normalized := NormalizeName(name)
+	if !validWrite(write) || positionID == "" || normalized == "" || !status.valid() {
+		return fmt.Errorf("invalid position update")
+	}
+	now := s.now().UTC()
+	return s.write(ctx, write, now, "organization.position.updated", "position", string(positionID), func(tx pgx.Tx) error {
+		return s.store.UpdatePosition(ctx, tx, write.Actor.TenantID, positionID, strings.TrimSpace(name), normalized, status, now)
+	})
 }
 
 // AssignUser sets the user's single primary department and optional position.

@@ -16,6 +16,7 @@ type Service interface {
 	Login(context.Context, string, string) (platformadmin.Tokens, error)
 	Refresh(context.Context, string) (platformadmin.Tokens, error)
 	AuthenticateAccess(context.Context, string) (platformadmin.Actor, error)
+	Logout(context.Context, platformadmin.Actor) error
 }
 
 // PlatformAdminHandler serves global administrator authentication.
@@ -65,6 +66,23 @@ func (h *PlatformAdminHandler) PlatformRefresh(c *gin.Context, params generated.
 		return
 	}
 	h.writeTokens(c, tokens)
+}
+
+// PlatformLogout revokes the current platform session and expires its cookies.
+func (h *PlatformAdminHandler) PlatformLogout(c *gin.Context, params generated.PlatformLogoutParams) {
+	if _, ok := h.security.CookieAndCSRF(c, apihttp.PlatformRefreshCookie, apihttp.PlatformCSRFCookie, params.XCSRFToken); !ok {
+		return
+	}
+	actor, ok := h.Actor(c)
+	if !ok {
+		return
+	}
+	if err := h.service.Logout(c.Request.Context(), actor); err != nil {
+		h.security.Problem(c, http.StatusUnauthorized, "authentication failed")
+		return
+	}
+	h.security.ClearCookies(c, apihttp.PlatformRefreshCookie, apihttp.PlatformCSRFCookie, "/api/platform/auth")
+	c.Status(http.StatusNoContent)
 }
 
 // Actor authenticates a platform bearer credential for downstream adapters.

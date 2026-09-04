@@ -6,11 +6,13 @@ import {
   Input,
   InputNumber,
   message,
+  Modal,
   Select,
   Space,
   Table,
   Tag,
 } from "antd";
+import { useState } from "react";
 
 import {
   getListDepartmentsQueryKey,
@@ -18,11 +20,15 @@ import {
   useDeleteDepartment,
   useListDepartments,
   useMoveDepartment,
+  useUpdateDepartment,
+  type Department,
 } from "../../api/generated/modura";
 import { useAuth } from "../auth/auth-context";
 import { usePermissions } from "../workspace/use-permissions";
 
 export function DepartmentsPage() {
+  const [editing, setEditing] = useState<Department>();
+  const [editForm] = Form.useForm();
   const auth = useAuth();
   const granted = usePermissions();
   const client = useQueryClient();
@@ -53,6 +59,18 @@ export function DepartmentsPage() {
           message.success("部门已移动");
           await refresh();
         } else message.error("移动失败");
+      },
+    },
+  });
+  const update = useUpdateDepartment({
+    fetch: writeFetch,
+    mutation: {
+      onSuccess: async (response) => {
+        if (response.status === 204) {
+          message.success("部门已更新");
+          setEditing(undefined);
+          await refresh();
+        } else message.error("更新失败");
       },
     },
   });
@@ -142,6 +160,19 @@ export function DepartmentsPage() {
                         }
                       />
                     )}
+                  {granted.has("organization.departments/update") && (
+                    <Button
+                      onClick={() => {
+                        setEditing(item);
+                        editForm.setFieldsValue({
+                          name: item.name,
+                          sortOrder: item.sortOrder,
+                        });
+                      }}
+                    >
+                      编辑
+                    </Button>
+                  )}
                   {item.parentId &&
                     granted.has("organization.departments/delete") && (
                       <Button
@@ -158,6 +189,29 @@ export function DepartmentsPage() {
           ]}
         />
       </Card>
+      <Modal
+        title="编辑部门"
+        open={Boolean(editing)}
+        confirmLoading={update.isPending}
+        onCancel={() => setEditing(undefined)}
+        onOk={() => editForm.submit()}
+        destroyOnHidden
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={(data) =>
+            editing && update.mutate({ departmentId: editing.id, data })
+          }
+        >
+          <Form.Item name="name" label="名称" rules={[{ required: true }]}>
+            <Input maxLength={128} />
+          </Form.Item>
+          <Form.Item name="sortOrder" label="排序" rules={[{ required: true }]}>
+            <InputNumber />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Space>
   );
 }

@@ -250,6 +250,24 @@ func (e SettingSource) Valid() bool {
 	}
 }
 
+// Defines values for UpdatePositionRequestStatus.
+const (
+	UpdatePositionRequestStatusActive   UpdatePositionRequestStatus = "active"
+	UpdatePositionRequestStatusDisabled UpdatePositionRequestStatus = "disabled"
+)
+
+// Valid indicates whether the value is a known member of the UpdatePositionRequestStatus enum.
+func (e UpdatePositionRequestStatus) Valid() bool {
+	switch e {
+	case UpdatePositionRequestStatusActive:
+		return true
+	case UpdatePositionRequestStatusDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
 // AccessTokenResponse defines model for AccessTokenResponse.
 type AccessTokenResponse struct {
 	AccessToken string                       `json:"accessToken"`
@@ -528,6 +546,21 @@ type TenantLifecycleRequest struct {
 	Reason string `json:"reason"`
 }
 
+// UpdateDepartmentRequest defines model for UpdateDepartmentRequest.
+type UpdateDepartmentRequest struct {
+	Name      string `json:"name"`
+	SortOrder int    `json:"sortOrder"`
+}
+
+// UpdatePositionRequest defines model for UpdatePositionRequest.
+type UpdatePositionRequest struct {
+	Name   string                      `json:"name"`
+	Status UpdatePositionRequestStatus `json:"status"`
+}
+
+// UpdatePositionRequestStatus defines model for UpdatePositionRequest.Status.
+type UpdatePositionRequestStatus string
+
 // UserRoleGrantSet defines model for UserRoleGrantSet.
 type UserRoleGrantSet struct {
 	RoleIds []openapi_types.UUID `json:"roleIds"`
@@ -556,6 +589,9 @@ type ExpectedVersion = int64
 
 // IdempotencyKey defines model for IdempotencyKey.
 type IdempotencyKey = openapi_types.UUID
+
+// PositionId defines model for PositionId.
+type PositionId = openapi_types.UUID
 
 // RoleId defines model for RoleId.
 type RoleId = openapi_types.UUID
@@ -633,13 +669,28 @@ type MoveDepartmentParams struct {
 	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
 }
 
+// UpdateDepartmentParams defines parameters for UpdateDepartment.
+type UpdateDepartmentParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
 // CreatePositionParams defines parameters for CreatePosition.
 type CreatePositionParams struct {
 	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
 }
 
+// UpdatePositionParams defines parameters for UpdatePosition.
+type UpdatePositionParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
 // AssignUserOrganizationParams defines parameters for AssignUserOrganization.
 type AssignUserOrganizationParams struct {
+	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
+}
+
+// PlatformLogoutParams defines parameters for PlatformLogout.
+type PlatformLogoutParams struct {
 	XCSRFToken CsrfToken `json:"X-CSRF-Token"`
 }
 
@@ -717,8 +768,14 @@ type CreateDepartmentJSONRequestBody = CreateDepartmentRequest
 // MoveDepartmentJSONRequestBody defines body for MoveDepartment for application/json ContentType.
 type MoveDepartmentJSONRequestBody = MoveDepartmentRequest
 
+// UpdateDepartmentJSONRequestBody defines body for UpdateDepartment for application/json ContentType.
+type UpdateDepartmentJSONRequestBody = UpdateDepartmentRequest
+
 // CreatePositionJSONRequestBody defines body for CreatePosition for application/json ContentType.
 type CreatePositionJSONRequestBody = CreatePositionRequest
+
+// UpdatePositionJSONRequestBody defines body for UpdatePosition for application/json ContentType.
+type UpdatePositionJSONRequestBody = UpdatePositionRequest
 
 // AssignUserOrganizationJSONRequestBody defines body for AssignUserOrganization for application/json ContentType.
 type AssignUserOrganizationJSONRequestBody = AssignUserOrganizationRequest
@@ -809,18 +866,27 @@ type ServerInterface interface {
 	// MoveDepartment Move a department under another parent
 	// (PATCH /organization/departments/{departmentId})
 	MoveDepartment(c *gin.Context, departmentId DepartmentId, params MoveDepartmentParams)
+	// UpdateDepartment Update a department name and sort order
+	// (PUT /organization/departments/{departmentId})
+	UpdateDepartment(c *gin.Context, departmentId DepartmentId, params UpdateDepartmentParams)
 	// ListPositions List positions in the authenticated tenant
 	// (GET /organization/positions)
 	ListPositions(c *gin.Context)
 	// CreatePosition Create a position in the authenticated tenant
 	// (POST /organization/positions)
 	CreatePosition(c *gin.Context, params CreatePositionParams)
+	// UpdatePosition Update a position name and status
+	// (PATCH /organization/positions/{positionId})
+	UpdatePosition(c *gin.Context, positionId PositionId, params UpdatePositionParams)
 	// AssignUserOrganization Set a user's primary department and optional position
 	// (PUT /organization/users/{userId}/assignment)
 	AssignUserOrganization(c *gin.Context, userId UserId, params AssignUserOrganizationParams)
 	// PlatformLogin Establish a global platform-administrator session
 	// (POST /platform/auth/login)
 	PlatformLogin(c *gin.Context)
+	// PlatformLogout Revoke the current platform-administrator session
+	// (POST /platform/auth/logout)
+	PlatformLogout(c *gin.Context, params PlatformLogoutParams)
 	// PlatformRefresh Rotate a platform-administrator refresh secret
 	// (POST /platform/auth/refresh)
 	PlatformRefresh(c *gin.Context, params PlatformRefreshParams)
@@ -1535,6 +1601,58 @@ func (siw *ServerInterfaceWrapper) MoveDepartment(c *gin.Context) {
 	siw.Handler.MoveDepartment(c, departmentId, params)
 }
 
+// UpdateDepartment operation middleware
+func (siw *ServerInterfaceWrapper) UpdateDepartment(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "departmentId" -------------
+	var departmentId DepartmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "departmentId", c.Param("departmentId"), &departmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departmentId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateDepartmentParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateDepartment(c, departmentId, params)
+}
+
 // ListPositions operation middleware
 func (siw *ServerInterfaceWrapper) ListPositions(c *gin.Context) {
 
@@ -1589,6 +1707,58 @@ func (siw *ServerInterfaceWrapper) CreatePosition(c *gin.Context) {
 	}
 
 	siw.Handler.CreatePosition(c, params)
+}
+
+// UpdatePosition operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePosition(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "positionId" -------------
+	var positionId PositionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "positionId", c.Param("positionId"), &positionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter positionId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdatePositionParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdatePosition(c, positionId, params)
 }
 
 // AssignUserOrganization operation middleware
@@ -1654,6 +1824,49 @@ func (siw *ServerInterfaceWrapper) PlatformLogin(c *gin.Context) {
 	}
 
 	siw.Handler.PlatformLogin(c)
+}
+
+// PlatformLogout operation middleware
+func (siw *ServerInterfaceWrapper) PlatformLogout(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PlatformLogoutParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfToken
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-CSRF-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-CSRF-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-CSRF-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PlatformLogout(c, params)
 }
 
 // PlatformRefresh operation middleware
@@ -2246,6 +2459,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
 	router.POST(options.BaseURL+"/platform/auth/login", wrapper.PlatformLogin)
 	router.POST(options.BaseURL+"/platform/auth/refresh", wrapper.PlatformRefresh)
+	router.POST(options.BaseURL+"/platform/auth/logout", wrapper.PlatformLogout)
 	router.GET(options.BaseURL+"/platform/tenants", wrapper.ListPlatformTenants)
 	router.POST(options.BaseURL+"/platform/tenants", wrapper.ProvisionPlatformTenant)
 	router.POST(options.BaseURL+"/platform/tenants/:tenantId/suspend", wrapper.SuspendPlatformTenant)
@@ -2264,8 +2478,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/organization/departments", wrapper.CreateDepartment)
 	router.DELETE(options.BaseURL+"/organization/departments/:departmentId", wrapper.DeleteDepartment)
 	router.PATCH(options.BaseURL+"/organization/departments/:departmentId", wrapper.MoveDepartment)
+	router.PUT(options.BaseURL+"/organization/departments/:departmentId", wrapper.UpdateDepartment)
 	router.GET(options.BaseURL+"/organization/positions", wrapper.ListPositions)
 	router.POST(options.BaseURL+"/organization/positions", wrapper.CreatePosition)
+	router.PATCH(options.BaseURL+"/organization/positions/:positionId", wrapper.UpdatePosition)
 	router.PUT(options.BaseURL+"/organization/users/:userId/assignment", wrapper.AssignUserOrganization)
 	router.GET(options.BaseURL+"/authorization/roles", wrapper.ListRoles)
 	router.POST(options.BaseURL+"/authorization/roles", wrapper.CreateRole)

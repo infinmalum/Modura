@@ -5,7 +5,13 @@ Planning basis: Project Constitution, executable agent contract, and SpringBlade
 
 ## Implementation status
 
-- Stage 0: complete on 2026-08-28. The backend/admin split, initial OpenAPI contract, generated Gin and React Query bindings, sqlc/migration structure, configuration and graceful HTTP server, workspace-local build caches, locked Admin dependencies, and `make verify` are operational.
+- Stage 0: foundation implemented on 2026-08-28, but its full exit criteria
+  are not yet met. The backend/admin split, initial OpenAPI contract, generated
+  Gin and React Query bindings, sqlc/migration structure, configuration and
+  graceful HTTP server, workspace-local build caches, locked Admin dependencies,
+  and `make verify` are operational. OpenAPI validation, mandatory migration and
+  PostgreSQL gates, architecture checks, and CI remain tracked in
+  [the remediation register](phase-1-remediation.md).
 - Stage 1: core complete on 2026-08-29, with email delivery explicitly pending.
   Tenant/login boundary ADR, tenant-local identity schema,
   Argon2id credentials, UUIDv7 identifiers, signed access-token validation,
@@ -30,7 +36,8 @@ Planning basis: Project Constitution, executable agent contract, and SpringBlade
   configured. Tokens MUST NOT be returned from public request endpoints as a
   substitute. This delivery gap is tracked for the Stage 2 provisioning and
   Stage 4 notification/admin workflow and is not represented as working UI.
-- Stage 2: complete on 2026-08-31. Organization cardinality and provisioning idempotency
+- Stage 2: backend foundation completed on 2026-08-31; product exit criteria
+  remain open. Organization cardinality and provisioning idempotency
   decisions are accepted. Department, position, and single-primary-department
   schema/application foundations are implemented with real-PostgreSQL tests
   for root, sibling uniqueness, cycle, delete, assignment, and cross-tenant
@@ -63,8 +70,11 @@ Planning basis: Project Constitution, executable agent contract, and SpringBlade
   tenant actor and request correlation into the application API. Each business
   write and its audit event commit in the same PostgreSQL transaction through
   the audit module's owned persistence API; integration evidence proves that an
-  audit failure rolls the business write back. Stage 2 exit criteria are met.
-- Stage 3: complete on 2026-08-31. Canonical resource/action identifiers are
+  audit failure rolls the business write back. User catalogue/status management,
+  tenant profile update, and complete organization editing remain tracked in the
+  remediation register.
+- Stage 3: backend authorization foundation completed on 2026-08-31, with
+  admin workflow and verification gaps still open. Canonical resource/action identifiers are
   mapped from every protected tenant OpenAPI operation and checked by an
   automated contract test. PostgreSQL owns tenant roles, policies, custom
   department scopes, assignments, and optimistic-lock versions; Casbin
@@ -81,8 +91,12 @@ Planning basis: Project Constitution, executable agent contract, and SpringBlade
   administration accept only meaningful `all` scope. Unit, HTTP-negative, and
   real-PostgreSQL tests cover policy denial, tenant isolation, every supported
   scope, write-scope rejection, stale desired-state updates, and durable audit
-  evidence. Stage 3 exit criteria are met.
-- Stages 4–5: pending.
+  evidence. Custom-scope editing and broader contract/security evidence remain
+  tracked in the remediation register.
+- Stage 4: in progress. Settings and audit backend surfaces plus the initial
+  React administration shell exist, but required write/user workflows and E2E
+  evidence are incomplete.
+- Stage 5: pending.
 
 ## Goal
 

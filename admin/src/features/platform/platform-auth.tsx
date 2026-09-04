@@ -1,5 +1,9 @@
 import { type PropsWithChildren, useEffect, useMemo, useState } from "react";
-import { platformLogin, platformRefresh } from "../../api/generated/modura";
+import {
+  platformLogin,
+  platformLogout,
+  platformRefresh,
+} from "../../api/generated/modura";
 import {
   PlatformAuthContext,
   type PlatformSession,
@@ -27,13 +31,15 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
     void platformRefresh({
       credentials: "include",
       headers: { "X-CSRF-Token": decodeURIComponent(csrf) },
-    }).then((response) => {
-      if (response.status === 200) {
-        setAccessToken(response.data.accessToken);
-        setCsrfToken(response.data.csrfToken);
-        setStatus("authenticated");
-      } else setStatus("anonymous");
-    });
+    })
+      .then((response) => {
+        if (response.status === 200) {
+          setAccessToken(response.data.accessToken);
+          setCsrfToken(response.data.csrfToken);
+          setStatus("authenticated");
+        } else setStatus("anonymous");
+      })
+      .catch(() => setStatus("anonymous"));
   }, []);
   const value = useMemo<PlatformSession>(
     () => ({
@@ -54,10 +60,22 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
         setCsrfToken(response.data.csrfToken);
         setStatus("authenticated");
       },
-      logout: () => {
-        setAccessToken("");
-        setCsrfToken("");
-        setStatus("anonymous");
+      logout: async () => {
+        try {
+          if (csrfToken && accessToken) {
+            await platformLogout({
+              credentials: "include",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "X-CSRF-Token": csrfToken,
+              },
+            });
+          }
+        } finally {
+          setAccessToken("");
+          setCsrfToken("");
+          setStatus("anonymous");
+        }
       },
     }),
     [accessToken, csrfToken, status],

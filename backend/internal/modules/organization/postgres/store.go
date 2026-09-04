@@ -104,6 +104,21 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`, department.ID, department.TenantID, de
 	return nil
 }
 
+// UpdateDepartment updates display fields after enforcing tenant and data scope.
+func (s *Store) UpdateDepartment(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, departmentID organization.DepartmentID, name, normalizedName string, sortOrder int, scope organization.DataScope, now time.Time) error {
+	if !visibleDepartment(ctx, tx, tenantID, departmentID, scope) {
+		return organization.ErrNotFound
+	}
+	command, err := tx.Exec(ctx, `UPDATE modura.departments SET name = $3, normalized_name = $4, sort_order = $5, updated_at = $6 WHERE tenant_id = $1 AND id = $2`, tenantID, departmentID, name, normalizedName, sortOrder, now)
+	if err != nil {
+		return fmt.Errorf("update department: %w", err)
+	}
+	if command.RowsAffected() != 1 {
+		return organization.ErrNotFound
+	}
+	return nil
+}
+
 // MoveDepartment atomically rejects root moves, cross-tenant parents, and cycles.
 func (s *Store) MoveDepartment(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, departmentID, newParentID organization.DepartmentID, scope organization.DataScope, now time.Time) error {
 	if !visibleDepartment(ctx, tx, tenantID, departmentID, scope) || !visibleDepartment(ctx, tx, tenantID, newParentID, scope) {
@@ -184,6 +199,18 @@ INSERT INTO modura.positions (id, tenant_id, name, normalized_name, status, crea
 VALUES ($1, $2, $3, $4, 'active', $5, $5)`, position.ID, position.TenantID, position.Name, position.NormalizedName, position.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("insert position: %w", err)
+	}
+	return nil
+}
+
+// UpdatePosition updates a tenant position's display fields and status.
+func (s *Store) UpdatePosition(ctx context.Context, tx pgx.Tx, tenantID identity.TenantID, positionID organization.PositionID, name, normalizedName string, status organization.PositionStatus, now time.Time) error {
+	command, err := tx.Exec(ctx, `UPDATE modura.positions SET name = $3, normalized_name = $4, status = $5, updated_at = $6 WHERE tenant_id = $1 AND id = $2`, tenantID, positionID, name, normalizedName, status, now)
+	if err != nil {
+		return fmt.Errorf("update position: %w", err)
+	}
+	if command.RowsAffected() != 1 {
+		return organization.ErrNotFound
 	}
 	return nil
 }

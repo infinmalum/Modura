@@ -139,3 +139,15 @@ WHERE s.id = $1 AND s.administrator_id = $2 AND s.security_version = $3
 	}
 	return nil
 }
+
+// RevokeSession revokes exactly the verified platform session.
+func (s *Store) RevokeSession(ctx context.Context, actor platformadmin.Actor, reason string, now time.Time) error {
+	command, err := s.pool.Exec(ctx, `UPDATE modura.platform_auth_sessions SET revoked_at = $3, revocation_reason = $4 WHERE administrator_id = $1 AND id = $2 AND revoked_at IS NULL`, actor.AdministratorID, actor.SessionID, now, reason)
+	if err != nil {
+		return fmt.Errorf("revoke platform session: %w", err)
+	}
+	if command.RowsAffected() != 1 {
+		return platformadmin.ErrInvalidToken
+	}
+	return nil
+}

@@ -78,6 +78,7 @@ func (platformAdminStub) AuthenticateAccess(_ context.Context, token string) (pl
 	}
 	return platformadmin.Actor{AdministratorID: "018bcfe5-6800-7000-8000-000000000801", SessionID: "018bcfe5-6800-7000-8000-000000000802"}, nil
 }
+func (platformAdminStub) Logout(context.Context, platformadmin.Actor) error { return nil }
 
 func (platformTenantStub) List(context.Context, platformadmin.Actor) ([]platformtenant.Tenant, error) {
 	return nil, nil
@@ -98,6 +99,9 @@ func (organizationStub) ListPositions(context.Context, identity.TenantID) ([]org
 func (organizationStub) CreateDepartment(context.Context, organization.WriteContext, *organization.DepartmentID, string, int) (organization.DepartmentID, error) {
 	return "018bcfe5-6800-7000-8000-000000000701", nil
 }
+func (organizationStub) UpdateDepartment(context.Context, organization.WriteContext, organization.DepartmentID, string, int) error {
+	return nil
+}
 func (organizationStub) MoveDepartment(context.Context, organization.WriteContext, organization.DepartmentID, organization.DepartmentID) error {
 	return nil
 }
@@ -106,6 +110,9 @@ func (organizationStub) DeleteDepartment(context.Context, organization.WriteCont
 }
 func (organizationStub) CreatePosition(context.Context, organization.WriteContext, string) (organization.PositionID, error) {
 	return "018bcfe5-6800-7000-8000-000000000702", nil
+}
+func (organizationStub) UpdatePosition(context.Context, organization.WriteContext, organization.PositionID, string, organization.PositionStatus) error {
+	return nil
 }
 func (organizationStub) AssignUser(context.Context, organization.WriteContext, identity.UserID, organization.DepartmentID, *organization.PositionID) error {
 	return nil
@@ -217,6 +224,24 @@ func TestPlatformRefreshRejectsTenantCookies(t *testing.T) {
 	router.ServeHTTP(response, request)
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusForbidden)
+	}
+}
+
+func TestPlatformLogoutClearsCookies(t *testing.T) {
+	router := testRouter(&identityStub{})
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/platform/auth/logout", nil)
+	request.Header.Set("Authorization", "Bearer platform-access")
+	request.Header.Set("X-CSRF-Token", strings.Repeat("c", 32))
+	request.AddCookie(&http.Cookie{Name: "modura_platform_refresh", Value: "platform-refresh"})
+	request.AddCookie(&http.Cookie{Name: "modura_platform_csrf", Value: strings.Repeat("c", 32)})
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d, body=%s", response.Code, http.StatusNoContent, response.Body.String())
+	}
+	cookies := response.Result().Cookies()
+	if len(cookies) != 2 || cookies[0].MaxAge >= 0 || cookies[1].MaxAge >= 0 {
+		t.Fatalf("unexpected cleared cookies: %+v", cookies)
 	}
 }
 

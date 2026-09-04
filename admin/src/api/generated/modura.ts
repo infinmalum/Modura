@@ -166,6 +166,19 @@ export interface MoveDepartmentRequest {
   parentId: string;
 }
 
+export interface UpdateDepartmentRequest {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string;
+  /**
+   * @minimum -2147483648
+   * @maximum 2147483647
+   */
+  sortOrder: number;
+}
+
 export interface IdentifierResponse {
   id: string;
 }
@@ -190,6 +203,23 @@ export interface CreatePositionRequest {
    * @maxLength 128
    */
   name: string;
+}
+
+export type UpdatePositionRequestStatus =
+  (typeof UpdatePositionRequestStatus)[keyof typeof UpdatePositionRequestStatus];
+
+export const UpdatePositionRequestStatus = {
+  active: "active",
+  disabled: "disabled",
+} as const;
+
+export interface UpdatePositionRequest {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  name: string;
+  status: UpdatePositionRequestStatus;
 }
 
 export interface AssignUserOrganizationRequest {
@@ -1232,6 +1262,129 @@ export const usePlatformRefresh = <
   TContext
 > => {
   return useMutation(getPlatformRefreshMutationOptions(options), queryClient);
+};
+
+export type platformLogoutResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type platformLogoutResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type platformLogoutResponse403 = {
+  data: CsrfFailedResponse;
+  status: 403;
+};
+
+export type platformLogoutResponseSuccess = platformLogoutResponse204 & {
+  headers: Headers;
+};
+export type platformLogoutResponseError = (
+  platformLogoutResponse401 | platformLogoutResponse403
+) & {
+  headers: Headers;
+};
+
+export type platformLogoutResponse =
+  platformLogoutResponseSuccess | platformLogoutResponseError;
+
+export const getPlatformLogoutUrl = () => {
+  return `/api/platform/auth/logout`;
+};
+
+/**
+ * @summary Revoke the current platform-administrator session
+ */
+export const platformLogout = async (
+  options?: RequestInit,
+): Promise<platformLogoutResponse> => {
+  const res = await fetch(getPlatformLogoutUrl(), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: platformLogoutResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as platformLogoutResponse;
+};
+
+export const getPlatformLogoutMutationOptions = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof platformLogout>>,
+    TError,
+    void,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof platformLogout>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["platformLogout"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof platformLogout>>,
+    void
+  > = () => {
+    return platformLogout(fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PlatformLogoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof platformLogout>>
+>;
+
+export type PlatformLogoutMutationError =
+  AuthenticationFailedResponse | CsrfFailedResponse;
+
+/**
+ * @summary Revoke the current platform-administrator session
+ */
+export const usePlatformLogout = <
+  TError = AuthenticationFailedResponse | CsrfFailedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof platformLogout>>,
+      TError,
+      void,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof platformLogout>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getPlatformLogoutMutationOptions(options), queryClient);
 };
 
 export type provisionPlatformTenantResponse200 = {
@@ -3878,6 +4031,165 @@ export const useMoveDepartment = <
   return useMutation(getMoveDepartmentMutationOptions(options), queryClient);
 };
 
+export type updateDepartmentResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type updateDepartmentResponse400 = {
+  data: Problem;
+  status: 400;
+};
+
+export type updateDepartmentResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type updateDepartmentResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type updateDepartmentResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type updateDepartmentResponseSuccess = updateDepartmentResponse204 & {
+  headers: Headers;
+};
+export type updateDepartmentResponseError = (
+  | updateDepartmentResponse400
+  | updateDepartmentResponse401
+  | updateDepartmentResponse403
+  | updateDepartmentResponse404
+) & {
+  headers: Headers;
+};
+
+export type updateDepartmentResponse =
+  updateDepartmentResponseSuccess | updateDepartmentResponseError;
+
+export const getUpdateDepartmentUrl = (departmentId: string) => {
+  return `/api/organization/departments/${departmentId}`;
+};
+
+/**
+ * @summary Update a department name and sort order
+ */
+export const updateDepartment = async (
+  departmentId: string,
+  updateDepartmentRequest: UpdateDepartmentRequest,
+  options?: RequestInit,
+): Promise<updateDepartmentResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getUpdateDepartmentUrl(departmentId), {
+    ...options,
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(updateDepartmentRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateDepartmentResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as updateDepartmentResponse;
+};
+
+export const getUpdateDepartmentMutationOptions = <
+  TError =
+    Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateDepartment>>,
+    TError,
+    UpdateDepartmentMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateDepartment>>,
+  TError,
+  UpdateDepartmentMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["updateDepartment"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateDepartment>>,
+    UpdateDepartmentMutationVariables
+  > = (props) => {
+    const { departmentId, data } = props ?? {};
+
+    return updateDepartment(departmentId, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateDepartmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateDepartment>>
+>;
+export type UpdateDepartmentMutationBody = UpdateDepartmentRequest;
+export type UpdateDepartmentMutationError =
+  Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void;
+export type UpdateDepartmentMutationVariables = {
+  departmentId: string;
+  data: UpdateDepartmentRequest;
+};
+
+/**
+ * @summary Update a department name and sort order
+ */
+export const useUpdateDepartment = <
+  TError =
+    Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateDepartment>>,
+      TError,
+      UpdateDepartmentMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateDepartment>>,
+  TError,
+  UpdateDepartmentMutationVariables,
+  TContext
+> => {
+  return useMutation(getUpdateDepartmentMutationOptions(options), queryClient);
+};
+
 export type deleteDepartmentResponse204 = {
   data: void;
   status: 204;
@@ -4335,6 +4647,165 @@ export const useCreatePosition = <
   TContext
 > => {
   return useMutation(getCreatePositionMutationOptions(options), queryClient);
+};
+
+export type updatePositionResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type updatePositionResponse400 = {
+  data: Problem;
+  status: 400;
+};
+
+export type updatePositionResponse401 = {
+  data: AuthenticationFailedResponse;
+  status: 401;
+};
+
+export type updatePositionResponse403 = {
+  data: AuthorizationFailedResponse;
+  status: 403;
+};
+
+export type updatePositionResponse404 = {
+  data: void;
+  status: 404;
+};
+
+export type updatePositionResponseSuccess = updatePositionResponse204 & {
+  headers: Headers;
+};
+export type updatePositionResponseError = (
+  | updatePositionResponse400
+  | updatePositionResponse401
+  | updatePositionResponse403
+  | updatePositionResponse404
+) & {
+  headers: Headers;
+};
+
+export type updatePositionResponse =
+  updatePositionResponseSuccess | updatePositionResponseError;
+
+export const getUpdatePositionUrl = (positionId: string) => {
+  return `/api/organization/positions/${positionId}`;
+};
+
+/**
+ * @summary Update a position name and status
+ */
+export const updatePosition = async (
+  positionId: string,
+  updatePositionRequest: UpdatePositionRequest,
+  options?: RequestInit,
+): Promise<updatePositionResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+  const res = await fetch(getUpdatePositionUrl(positionId), {
+    ...options,
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(updatePositionRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updatePositionResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as updatePositionResponse;
+};
+
+export const getUpdatePositionMutationOptions = <
+  TError =
+    Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePosition>>,
+    TError,
+    UpdatePositionMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePosition>>,
+  TError,
+  UpdatePositionMutationVariables,
+  TContext
+> => {
+  const mutationKey = ["updatePosition"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePosition>>,
+    UpdatePositionMutationVariables
+  > = (props) => {
+    const { positionId, data } = props ?? {};
+
+    return updatePosition(positionId, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePositionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePosition>>
+>;
+export type UpdatePositionMutationBody = UpdatePositionRequest;
+export type UpdatePositionMutationError =
+  Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void;
+export type UpdatePositionMutationVariables = {
+  positionId: string;
+  data: UpdatePositionRequest;
+};
+
+/**
+ * @summary Update a position name and status
+ */
+export const useUpdatePosition = <
+  TError =
+    Problem | AuthenticationFailedResponse | AuthorizationFailedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updatePosition>>,
+      TError,
+      UpdatePositionMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof updatePosition>>,
+  TError,
+  UpdatePositionMutationVariables,
+  TContext
+> => {
+  return useMutation(getUpdatePositionMutationOptions(options), queryClient);
 };
 
 export type assignUserOrganizationResponse204 = {

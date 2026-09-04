@@ -11,8 +11,12 @@ import (
 )
 
 type storeStub struct {
-	department Department
-	position   Position
+	department     Department
+	position       Position
+	departmentName string
+	departmentSort int
+	positionName   string
+	positionStatus PositionStatus
 }
 
 func (*storeStub) ListDepartments(context.Context, identity.TenantID, DataScope) ([]DepartmentView, error) {
@@ -26,6 +30,11 @@ func (s *storeStub) CreateDepartment(_ context.Context, _ pgx.Tx, department Dep
 	s.department = department
 	return nil
 }
+func (s *storeStub) UpdateDepartment(_ context.Context, _ pgx.Tx, _ identity.TenantID, _ DepartmentID, name, _ string, sortOrder int, _ DataScope, _ time.Time) error {
+	s.departmentName = name
+	s.departmentSort = sortOrder
+	return nil
+}
 func (*storeStub) MoveDepartment(context.Context, pgx.Tx, identity.TenantID, DepartmentID, DepartmentID, DataScope, time.Time) error {
 	return nil
 }
@@ -36,8 +45,42 @@ func (s *storeStub) CreatePosition(_ context.Context, _ pgx.Tx, position Positio
 	s.position = position
 	return nil
 }
+func (s *storeStub) UpdatePosition(_ context.Context, _ pgx.Tx, _ identity.TenantID, _ PositionID, name, _ string, status PositionStatus, _ time.Time) error {
+	s.positionName = name
+	s.positionStatus = status
+	return nil
+}
 func (*storeStub) AssignUser(context.Context, pgx.Tx, identity.TenantID, identity.UserID, DepartmentID, *PositionID, DataScope, time.Time) error {
 	return nil
+}
+
+func TestServiceUpdatesOrganizationCatalogAndAudits(t *testing.T) {
+	store := &storeStub{}
+	auditor := &auditorStub{}
+	now := time.Unix(1_700_000_000, 0)
+	service, err := NewService(store, transactorStub{}, auditor, func() time.Time { return now }, func(time.Time) (string, error) { return "unused", nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := WriteContext{Actor: identity.Actor{TenantID: "tenant", UserID: "user", SessionID: "session"}, CorrelationID: "request-2", Scope: DataScope{ActorID: "user", All: true}}
+	if err := service.UpdateDepartment(context.Background(), write, "department", " 产品研发 ", 20); err != nil {
+		t.Fatal(err)
+	}
+	if store.departmentName != "产品研发" || store.departmentSort != 20 {
+		t.Fatalf("department update = %q, %d", store.departmentName, store.departmentSort)
+	}
+	if err := service.UpdatePosition(context.Background(), write, "position", " Staff Engineer ", PositionStatusDisabled); err != nil {
+		t.Fatal(err)
+	}
+	if store.positionName != "Staff Engineer" || store.positionStatus != PositionStatusDisabled {
+		t.Fatalf("position update = %q, %q", store.positionName, store.positionStatus)
+	}
+	if len(auditor.events) != 2 || auditor.events[0].Action != "organization.department.updated" || auditor.events[1].Action != "organization.position.updated" {
+		t.Fatalf("audit events = %+v", auditor.events)
+	}
+	if err := service.UpdatePosition(context.Background(), write, "position", "name", "unknown"); err == nil {
+		t.Fatal("expected invalid position status to fail")
+	}
 }
 
 type transactorStub struct{}

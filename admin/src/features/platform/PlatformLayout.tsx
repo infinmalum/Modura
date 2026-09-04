@@ -32,7 +32,7 @@ export function PlatformLayout() {
       <Layout>
         <Layout.Header className="admin-shell__header">
           <Typography.Text strong>平台控制台</Typography.Text>
-          <Button onClick={() => auth.logout()}>退出当前页面</Button>
+          <Button onClick={() => void auth.logout()}>退出登录</Button>
         </Layout.Header>
         <Layout.Content className="admin-shell__content">
           <Outlet />

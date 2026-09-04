@@ -16,6 +16,7 @@ import {
   RolePolicyAction,
   RolePolicyResource,
   useGetRolePolicySet,
+  useListDepartments,
   useReplaceRolePolicies,
   type RolePolicy,
 } from "../../api/generated/modura";
@@ -37,6 +38,7 @@ const scopes = Object.values(DataScopeKind).map((value) => ({
 
 export function RolePoliciesPage() {
   const roleId = useParams().roleId ?? "";
+  const [form] = Form.useForm();
   const auth = useAuth();
   const granted = usePermissions();
   const client = useQueryClient();
@@ -45,6 +47,14 @@ export function RolePoliciesPage() {
     query: { enabled: Boolean(roleId) },
   });
   const state = query.data?.status === 200 ? query.data.data : undefined;
+  const departmentsQuery = useListDepartments({ fetch: auth.fetchOptions });
+  const departments =
+    departmentsQuery.data?.status === 200
+      ? departmentsQuery.data.data.map((department) => ({
+          value: department.id,
+          label: department.name,
+        }))
+      : [];
   const replace = useReplaceRolePolicies({
     fetch: {
       ...auth.fetchOptions,
@@ -80,6 +90,7 @@ export function RolePoliciesPage() {
       }
     >
       <Form
+        form={form}
         key={state.version}
         initialValues={{ policies: state.policies }}
         onFinish={(value: { policies?: RolePolicy[] }) =>
@@ -96,49 +107,118 @@ export function RolePoliciesPage() {
           {(fields, { add, remove }) => (
             <Space direction="vertical" className="workspace">
               {fields.map((field) => (
-                <Space key={field.key} wrap>
-                  <Form.Item
-                    {...field}
-                    name={[field.name, "resource"]}
-                    rules={[{ required: true }]}
-                  >
-                    <Select
-                      disabled={!editable}
-                      placeholder="资源"
-                      style={{ width: 260 }}
-                      options={resources}
-                    />
-                  </Form.Item>
-                  <Form.Item
-                    {...field}
-                    name={[field.name, "action"]}
-                    rules={[{ required: true }]}
-                  >
-                    <Select
-                      disabled={!editable}
-                      placeholder="动作"
-                      style={{ width: 120 }}
-                      options={actions}
-                    />
-                  </Form.Item>
-                  <Form.Item
-                    {...field}
-                    name={[field.name, "dataScope"]}
-                    rules={[{ required: true }]}
-                  >
-                    <Select
-                      disabled={!editable}
-                      placeholder="数据范围"
-                      style={{ width: 220 }}
-                      options={scopes}
-                    />
-                  </Form.Item>
-                  {editable && (
-                    <Button danger onClick={() => remove(field.name)}>
-                      移除
-                    </Button>
-                  )}
-                </Space>
+                <Form.Item
+                  key={field.key}
+                  noStyle
+                  shouldUpdate={(previous, current) => {
+                    const before = previous.policies?.[field.name];
+                    const after = current.policies?.[field.name];
+                    return (
+                      before?.resource !== after?.resource ||
+                      before?.dataScope !== after?.dataScope
+                    );
+                  }}
+                >
+                  {({ getFieldValue }) => {
+                    const policy = getFieldValue(["policies", field.name]);
+                    const supportsNarrowScope =
+                      policy?.resource === "organization.departments" ||
+                      policy?.resource === "organization.user-organization";
+                    const scopeOptions = supportsNarrowScope
+                      ? scopes
+                      : scopes.filter((scope) => scope.value === "all");
+                    return (
+                      <Space wrap>
+                        <Form.Item
+                          {...field}
+                          name={[field.name, "resource"]}
+                          rules={[{ required: true }]}
+                        >
+                          <Select
+                            disabled={!editable}
+                            placeholder="资源"
+                            style={{ width: 260 }}
+                            options={resources}
+                            onChange={(resource) => {
+                              if (
+                                resource !== "organization.departments" &&
+                                resource !== "organization.user-organization"
+                              ) {
+                                form.setFieldValue(
+                                  ["policies", field.name, "dataScope"],
+                                  "all",
+                                );
+                                form.setFieldValue(
+                                  ["policies", field.name, "departmentIds"],
+                                  undefined,
+                                );
+                              }
+                            }}
+                          />
+                        </Form.Item>
+                        <Form.Item
+                          {...field}
+                          name={[field.name, "action"]}
+                          rules={[{ required: true }]}
+                        >
+                          <Select
+                            disabled={!editable}
+                            placeholder="动作"
+                            style={{ width: 120 }}
+                            options={actions}
+                          />
+                        </Form.Item>
+                        <Form.Item
+                          {...field}
+                          name={[field.name, "dataScope"]}
+                          rules={[{ required: true }]}
+                        >
+                          <Select
+                            disabled={!editable}
+                            placeholder="数据范围"
+                            style={{ width: 220 }}
+                            options={scopeOptions}
+                            onChange={(scope) => {
+                              if (scope !== "custom")
+                                form.setFieldValue(
+                                  ["policies", field.name, "departmentIds"],
+                                  undefined,
+                                );
+                            }}
+                          />
+                        </Form.Item>
+                        {policy?.dataScope === "custom" && (
+                          <Form.Item
+                            {...field}
+                            name={[field.name, "departmentIds"]}
+                            rules={[
+                              {
+                                required: true,
+                                type: "array",
+                                min: 1,
+                                message: "请选择至少一个部门",
+                              },
+                            ]}
+                          >
+                            <Select
+                              mode="multiple"
+                              disabled={!editable}
+                              loading={departmentsQuery.isLoading}
+                              placeholder="自定义部门"
+                              style={{ minWidth: 260 }}
+                              options={departments}
+                            />
+                          </Form.Item>
+                        )}
+                        {editable && (
+                          <Button danger onClick={() => remove(field.name)}>
+                            移除
+                          </Button>
+                        )}
+                      </Space>
+                    );
+                  }}
+                </Form.Item>
               ))}
               {editable && (
                 <Space>

@@ -21,6 +21,20 @@ var (
 	ErrInUse = errors.New("organization resource is in use")
 )
 
+// PositionStatus is the lifecycle state of a tenant position.
+type PositionStatus string
+
+const (
+	// PositionStatusActive permits the position to be assigned.
+	PositionStatusActive PositionStatus = "active"
+	// PositionStatusDisabled retains the position but prevents new use.
+	PositionStatusDisabled PositionStatus = "disabled"
+)
+
+func (s PositionStatus) valid() bool {
+	return s == PositionStatusActive || s == PositionStatusDisabled
+}
+
 // DepartmentID identifies a tenant-owned department.
 type DepartmentID string
 
@@ -59,7 +73,7 @@ type Position struct {
 type PositionView struct {
 	ID     PositionID
 	Name   string
-	Status string
+	Status PositionStatus
 }
 
 // NormalizeName canonicalizes an organization business name.

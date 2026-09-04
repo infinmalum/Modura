@@ -40,7 +40,13 @@ func New(cfg config.HTTP, logger *slog.Logger, dependencies ...Dependencies) *ht
 		deps = dependencies[0]
 	}
 	contractHandler := handler.New(handler.Dependencies{Identity: deps.Identity, Authorizer: deps.Authorizer, Authorization: deps.Authorization, Organization: deps.Organization, PlatformAdmin: deps.PlatformAdmin, PlatformTenant: deps.PlatformTenant, Provisioning: deps.Provisioning, Settings: deps.Settings, PlatformSettings: deps.PlatformSettings, Audit: deps.Audit, Ready: deps.Ready}, cfg.CookieSecure, func() (string, error) { return identity.NewOpaqueToken(32) })
-	generated.RegisterHandlersWithOptions(router, contractHandler, generated.GinServerOptions{BaseURL: "/api"})
+	generated.RegisterHandlersWithOptions(router, contractHandler, generated.GinServerOptions{
+		BaseURL: "/api",
+		ErrorHandler: func(c *gin.Context, _ error, status int) {
+			c.Header("Content-Type", "application/problem+json")
+			c.JSON(status, generated.Problem{Type: "about:blank", Title: "invalid request", Status: status})
+		},
+	})
 	return &http.Server{Addr: cfg.Address, Handler: router, ReadTimeout: cfg.ReadTimeout, WriteTimeout: cfg.WriteTimeout, IdleTimeout: cfg.IdleTimeout, MaxHeaderBytes: cfg.MaxHeaderBytes}
 }
 

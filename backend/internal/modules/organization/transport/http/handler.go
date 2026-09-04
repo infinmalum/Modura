@@ -31,10 +31,42 @@ type Service interface {
 	ListDepartments(context.Context, identity.TenantID, organization.DataScope) ([]organization.DepartmentView, error)
 	ListPositions(context.Context, identity.TenantID) ([]organization.PositionView, error)
 	CreateDepartment(context.Context, organization.WriteContext, *organization.DepartmentID, string, int) (organization.DepartmentID, error)
+	UpdateDepartment(context.Context, organization.WriteContext, organization.DepartmentID, string, int) error
 	MoveDepartment(context.Context, organization.WriteContext, organization.DepartmentID, organization.DepartmentID) error
 	DeleteDepartment(context.Context, organization.WriteContext, organization.DepartmentID) error
 	CreatePosition(context.Context, organization.WriteContext, string) (organization.PositionID, error)
+	UpdatePosition(context.Context, organization.WriteContext, organization.PositionID, string, organization.PositionStatus) error
 	AssignUser(context.Context, organization.WriteContext, identity.UserID, organization.DepartmentID, *organization.PositionID) error
+}
+
+// UpdateDepartment changes a department's display fields.
+func (h *OrganizationHandler) UpdateDepartment(c *gin.Context, departmentID generated.DepartmentId, params generated.UpdateDepartmentParams) {
+	if !h.csrf(c, params.XCSRFToken) {
+		return
+	}
+	actor, ok := h.authorizedActor(c, authorization.Permission{Resource: authorization.ResourceDepartments, Action: authorization.ActionUpdate})
+	if !ok {
+		return
+	}
+	scope, ok := h.resolvedScope(c, actor, authorization.Permission{Resource: authorization.ResourceDepartments, Action: authorization.ActionUpdate})
+	if !ok {
+		return
+	}
+	var request generated.UpdateDepartmentRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		h.security.Problem(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+	err := h.service.UpdateDepartment(c.Request.Context(), writeContext(c, actor, scope), organization.DepartmentID(departmentID.String()), request.Name, request.SortOrder)
+	if errors.Is(err, organization.ErrNotFound) {
+		h.security.Problem(c, http.StatusNotFound, "not found")
+		return
+	}
+	if err != nil {
+		h.security.Problem(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // OrganizationHandler serves tenant-scoped organization operations.
@@ -241,6 +273,37 @@ func (h *OrganizationHandler) CreatePosition(c *gin.Context, params generated.Cr
 		return
 	}
 	c.JSON(http.StatusCreated, generated.IdentifierResponse{Id: responseID})
+}
+
+// UpdatePosition changes a tenant position's display fields and status.
+func (h *OrganizationHandler) UpdatePosition(c *gin.Context, positionID generated.PositionId, params generated.UpdatePositionParams) {
+	if !h.csrf(c, params.XCSRFToken) {
+		return
+	}
+	actor, ok := h.authorizedActor(c, authorization.Permission{Resource: authorization.ResourcePositions, Action: authorization.ActionUpdate})
+	if !ok {
+		return
+	}
+	scope, ok := h.resolvedScope(c, actor, authorization.Permission{Resource: authorization.ResourcePositions, Action: authorization.ActionUpdate})
+	if !ok || !scope.All {
+		h.security.Problem(c, http.StatusForbidden, "forbidden")
+		return
+	}
+	var request generated.UpdatePositionRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		h.security.Problem(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+	err := h.service.UpdatePosition(c.Request.Context(), writeContext(c, actor, scope), organization.PositionID(positionID.String()), request.Name, organization.PositionStatus(request.Status))
+	if errors.Is(err, organization.ErrNotFound) {
+		h.security.Problem(c, http.StatusNotFound, "not found")
+		return
+	}
+	if err != nil {
+		h.security.Problem(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // AssignUserOrganization replaces a user's primary organization assignment.

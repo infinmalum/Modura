@@ -35,15 +35,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     void refresh({
       credentials: "include",
       headers: { "X-CSRF-Token": decodeURIComponent(csrf) },
-    }).then((response) => {
-      if (response.status === 200) {
-        setAccessToken(response.data.accessToken);
-        setCsrfToken(response.data.csrfToken);
-        setStatus("authenticated");
-      } else {
-        setStatus("anonymous");
-      }
-    });
+    })
+      .then((response) => {
+        if (response.status === 200) {
+          setAccessToken(response.data.accessToken);
+          setCsrfToken(response.data.csrfToken);
+          setStatus("authenticated");
+        } else {
+          setStatus("anonymous");
+        }
+      })
+      .catch(() => setStatus("anonymous"));
   }, []);
 
   const value = useMemo<AuthSession>(
